@@ -1,15 +1,60 @@
 import React, { useState, useEffect } from "react";
-import { Fingerprint, MapPin, CheckCircle2, XCircle, Loader2, ShieldCheck } from "lucide-react";
+import { Fingerprint, MapPin, CheckCircle2, XCircle, Loader2, LogOut } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { BottomNav } from "../components/Navigation";
+import { useNavigate } from "react-router-dom";
 import { cn } from "@/src/lib/utils";
 
 export default function MobileCheckIn() {
   const [status, setStatus] = useState<'idle' | 'checking' | 'success' | 'error'>('idle');
+  const [currentMode, setCurrentMode] = useState<'In' | 'Out'>('Out');
   const [locationError, setLocationError] = useState<string | null>(null);
   const [inZone, setInZone] = useState<boolean | null>(null);
+  const [user, setUser] = useState<any>(null);
+  const [geofence, setGeofence] = useState<any>(null);
+  const navigate = useNavigate();
 
-  const handleCheckIn = () => {
+  useEffect(() => {
+    const savedUser = localStorage.getItem("user");
+    if (savedUser) {
+      const u = JSON.parse(savedUser);
+      setUser(u);
+      
+      // Fetch current status
+      fetch(`/api/attendance/status/${u.id}`)
+        .then(res => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          return res.json();
+        })
+        .then(data => {
+          setCurrentMode(data.status || 'Out');
+          if (data.status === 'In') setInZone(true);
+        })
+        .catch(err => {
+          console.error("Status fetch failed:", err);
+          setCurrentMode('Out');
+        });
+    }
+
+    // Fetch Geofence config
+    fetch("/api/geofence")
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then(data => setGeofence(data))
+      .catch(err => {
+        console.error("Failed to load geofence", err);
+        setGeofence({ name: "Demo HQ", radius: 200 }); // Minimal fallback
+      });
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem("user");
+    navigate("/");
+  };
+
+  const handleAction = () => {
+    if (!user) return;
     setStatus('checking');
     
     if (!navigator.geolocation) {
@@ -21,28 +66,33 @@ export default function MobileCheckIn() {
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const { latitude, longitude } = position.coords;
+        const endpoint = currentMode === 'Out' ? "/api/attendance/check-in" : "/api/attendance/check-out";
         
-        fetch("/api/attendance/check-in", {
+        fetch(endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            employeeId: "1", // Hardcoded for demo
+            employeeId: user.id,
             lat: latitude,
             lng: longitude
           })
         })
-        .then(res => res.json())
-        .then(data => {
-          if (data.success) {
+        .then(async (res) => {
+          const data = await res.json();
+          if (res.ok && data.success) {
             setStatus('success');
-            setInZone(true);
+            const newMode = currentMode === 'Out' ? 'In' : 'Out';
+            setCurrentMode(newMode);
+            setInZone(newMode === 'In');
           } else {
             setStatus('error');
-            setInZone(false);
+            setLocationError(data.message || data.error || "Request failed");
           }
         })
-        .catch(() => {
+        .catch((err) => {
+          console.error("Network error during attendance:", err);
           setStatus('error');
+          setLocationError("Network connection failed. Please try again.");
         });
       },
       (err) => {
@@ -61,9 +111,12 @@ export default function MobileCheckIn() {
           </div>
           <h1 className="text-xl font-bold text-primary">GeoAttendance</h1>
         </div>
-        <div className="w-10 h-10 rounded-full bg-white shadow-sm border border-outline-variant flex items-center justify-center">
-          <Fingerprint className="w-5 h-5 text-on-surface-variant" />
-        </div>
+        <button 
+          onClick={handleLogout}
+          className="w-10 h-10 rounded-full bg-white shadow-sm border border-outline-variant flex items-center justify-center hover:bg-surface-container transition-colors"
+        >
+          <LogOut className="w-5 h-5 text-on-surface-variant" />
+        </button>
       </div>
 
       <motion.div 
@@ -71,17 +124,17 @@ export default function MobileCheckIn() {
         animate={{ opacity: 1, y: 0 }}
         className="w-full text-center mt-4"
       >
-        <h2 className="text-3xl font-bold text-on-surface tracking-tight">Welcome, Sarah Chen</h2>
-        <p className="text-on-surface-variant font-medium mt-1">Enterprise HQ • Floor 4</p>
+        <h2 className="text-3xl font-bold text-on-surface tracking-tight">Welcome, {user?.name || 'Employee'}</h2>
+        <p className="text-on-surface-variant font-medium mt-1">Enterprise HQ • {user?.role === 'admin' ? 'Administrator' : 'Personnel'}</p>
       </motion.div>
 
       <div className="w-full mt-10 p-6 bg-white rounded-3xl shadow-xl shadow-black/5 flex items-center justify-between">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant opacity-60">Current Status</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant opacity-60">Session Status</p>
           <div className="flex items-center gap-2 mt-1">
-            <div className={cn("w-2.5 h-2.5 rounded-full animate-pulse", inZone === true ? "bg-secondary" : "bg-on-surface-variant/20")} />
-            <p className={cn("text-lg font-bold", inZone === true ? "text-secondary" : "text-on-surface")}>
-              {inZone === true ? "Inside Zone" : "Awaiting Verification"}
+            <div className={cn("w-2.5 h-2.5 rounded-full animate-pulse", currentMode === 'In' ? "bg-secondary" : "bg-on-surface-variant/20")} />
+            <p className={cn("text-lg font-bold", currentMode === 'In' ? "text-secondary" : "text-on-surface")}>
+              {currentMode === 'In' ? "Checked In" : "Not Active"}
             </p>
           </div>
         </div>
@@ -99,16 +152,29 @@ export default function MobileCheckIn() {
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 1.1, opacity: 0 }}
-              onClick={handleCheckIn}
-              className="relative w-64 h-64 bg-primary-container rounded-full flex flex-col items-center justify-center shadow-2xl shadow-primary-container/40 active:scale-95 transition-all group overflow-hidden"
+              onClick={handleAction}
+              className={cn(
+                "relative w-64 h-64 rounded-full flex flex-col items-center justify-center shadow-2xl active:scale-95 transition-all group overflow-hidden",
+                currentMode === 'Out' 
+                  ? "bg-primary-container shadow-primary-container/40" 
+                  : "bg-red-500 shadow-red-500/40"
+              )}
             >
               <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity" />
-              <Fingerprint className="w-24 h-24 text-secondary-container mb-4" />
-              <span className="text-xs font-bold text-white uppercase tracking-[0.2em]">Tap to Check In</span>
+              <Fingerprint className="w-24 h-24 text-white mb-4" />
+              <span className="text-xs font-bold text-white uppercase tracking-[0.2em]">
+                {currentMode === 'Out' ? "Tap to Check In" : "Tap to Check Out"}
+              </span>
               
               {/* Animated rings */}
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-72 rounded-full border-2 border-primary-container/20 animate-ping" />
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 rounded-full border border-primary-container/10 animate-ping" style={{ animationDelay: '0.5s' }} />
+              <div className={cn(
+                "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-72 rounded-full border-2 animate-ping",
+                currentMode === 'Out' ? "border-primary-container/20" : "border-red-500/20"
+              )} />
+              <div className={cn(
+                "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 rounded-full border animate-ping",
+                currentMode === 'Out' ? "border-primary-container/10" : "border-red-500/10"
+              )} style={{ animationDelay: '0.5s' }} />
             </motion.button>
           )}
 
@@ -121,7 +187,9 @@ export default function MobileCheckIn() {
               className="flex flex-col items-center"
             >
               <Loader2 className="w-24 h-24 text-secondary animate-spin mb-6" />
-              <p className="text-sm font-bold uppercase tracking-widest text-on-surface-variant animate-pulse">Verifying Geofence...</p>
+              <p className="text-sm font-bold uppercase tracking-widest text-on-surface-variant animate-pulse">
+                {currentMode === 'Out' ? "Verifying Geofence..." : "Logging Out..."}
+              </p>
             </motion.div>
           )}
 
@@ -132,14 +200,22 @@ export default function MobileCheckIn() {
               animate={{ scale: 1, opacity: 1 }}
               className="flex flex-col items-center"
             >
-              <div className="w-48 h-48 bg-secondary-container rounded-full flex items-center justify-center mb-8 shadow-xl shadow-secondary/10">
-                <CheckCircle2 className="w-24 h-24 text-secondary" />
+              <div className={cn(
+                "w-48 h-48 rounded-full flex items-center justify-center mb-8 shadow-xl",
+                currentMode === 'In' ? "bg-secondary-container shadow-secondary/10" : "bg-red-100 shadow-red-200"
+              )}>
+                <CheckCircle2 className={cn("w-24 h-24", currentMode === 'In' ? "text-secondary" : "text-red-500")} />
               </div>
-              <h3 className="text-2xl font-bold text-on-surface">Checked In!</h3>
+              <h3 className="text-2xl font-bold text-on-surface">
+                {currentMode === 'In' ? "Checked In!" : "Checked Out!"}
+              </h3>
               <p className="text-on-surface-variant mt-2">Time: {new Date().toLocaleTimeString()}</p>
               <button 
                 onClick={() => setStatus('idle')}
-                className="mt-8 text-xs font-bold uppercase tracking-widest text-secondary hover:underline"
+                className={cn(
+                  "mt-8 text-xs font-bold uppercase tracking-widest hover:underline",
+                  currentMode === 'In' ? "text-secondary" : "text-red-500"
+                )}
               >
                 Done
               </button>
@@ -156,8 +232,8 @@ export default function MobileCheckIn() {
               <div className="w-48 h-48 bg-error-container rounded-full flex items-center justify-center mb-8 shadow-xl shadow-error/10">
                 <XCircle className="w-24 h-24 text-error" />
               </div>
-              <h3 className="text-2xl font-bold text-on-surface">Check In Failed</h3>
-              <p className="text-on-surface-variant mt-2 max-w-xs">{locationError || "You must be within the designated HQ Main Entrance zone to check in."}</p>
+              <h3 className="text-2xl font-bold text-on-surface">Action Failed</h3>
+              <p className="text-on-surface-variant mt-2 max-w-xs">{locationError || `You must be within the designated ${geofence?.name || 'Area'} zone.`}</p>
               <button 
                 onClick={() => setStatus('idle')}
                 className="btn-primary mt-8 py-3 px-8"
@@ -171,7 +247,7 @@ export default function MobileCheckIn() {
 
       <div className="w-full text-center max-w-xs mb-8">
         <p className="text-[11px] text-on-surface-variant font-medium leading-relaxed opacity-60">
-          Biometric verification active. Position your device within the geofence to register attendance.
+          Location-based authentication active. Your coordinates are verified against the secure enterprise perimeter.
         </p>
       </div>
 
@@ -184,16 +260,14 @@ export default function MobileCheckIn() {
           />
         </div>
         <div className="flex-1">
-          <p className="text-sm font-bold text-on-surface">Headquarters Main Entrance</p>
+          <p className="text-sm font-bold text-on-surface">{geofence?.name || "Loading Region..."}</p>
           <div className="flex items-center gap-2">
-            <div className="w-1.5 h-1.5 rounded-full bg-secondary" />
-            <p className="text-[10px] uppercase font-bold tracking-wider text-secondary">Active Region</p>
+            <div className={cn("w-1.5 h-1.5 rounded-full", currentMode === 'In' ? "bg-secondary" : "bg-on-surface-variant/30")} />
+            <p className={cn("text-[10px] uppercase font-bold tracking-wider", currentMode === 'In' ? "text-secondary" : "text-on-surface-variant")}>Active Perimeter</p>
           </div>
         </div>
-        <p className="text-xs font-bold text-secondary">200m Radius</p>
+        <p className="text-xs font-bold text-secondary">{geofence?.radius || 0}m Radius</p>
       </div>
-
-      <BottomNav />
     </div>
   );
 }

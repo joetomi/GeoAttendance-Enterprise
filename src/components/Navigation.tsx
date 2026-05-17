@@ -11,7 +11,7 @@ import {
   Search,
   Bell
 } from "lucide-react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/src/lib/utils";
 
 interface SidebarProps {
@@ -20,6 +20,12 @@ interface SidebarProps {
 
 export function Sidebar({ className }: SidebarProps) {
   const location = useLocation();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    localStorage.removeItem("user");
+    navigate("/");
+  };
 
   const navItems = [
     { icon: Users, label: "Manage Employees", path: "/admin" },
@@ -56,13 +62,13 @@ export function Sidebar({ className }: SidebarProps) {
       </nav>
 
       <div className="mt-auto border-t border-white/10">
-        <Link
-          to="/logout"
-          className="flex items-center gap-3 text-white/60 px-6 py-6 hover:bg-white/5 hover:text-white transition-colors"
+        <button
+          onClick={handleLogout}
+          className="w-full flex items-center gap-3 text-white/60 px-6 py-6 hover:bg-white/5 hover:text-white transition-colors"
         >
           <LogOut className="w-5 h-5" />
           <span className="text-sm font-medium">Logout</span>
-        </Link>
+        </button>
         <div className="px-6 pb-8 flex items-center gap-3">
           <img 
             src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=100&h=100&auto=format&fit=crop" 
@@ -99,6 +105,9 @@ export function Header({ title }: { title: string }) {
           />
         </div>
         <div className="flex items-center gap-1">
+          <Link to="/settings" className="p-2 text-on-surface-variant hover:bg-surface-container transition-colors rounded-full">
+            <Settings className="w-5 h-5" />
+          </Link>
           <button className="p-2 text-on-surface-variant hover:bg-surface-container transition-colors rounded-full">
             <Bell className="w-5 h-5" />
           </button>
@@ -113,10 +122,23 @@ export function Header({ title }: { title: string }) {
 
 export function BottomNav() {
   const location = useLocation();
+  const navigate = useNavigate();
+  
+  const handleLogout = () => {
+    localStorage.removeItem("user");
+    navigate("/");
+  };
+
+  const userJson = localStorage.getItem("user");
+  const user = userJson ? JSON.parse(userJson) : null;
+  const isAdmin = user?.role === "admin";
+
   const items = [
     { icon: MapPin, label: "Check In", path: "/check-in" },
-    { icon: Users, label: "History", path: "/history" },
-    { icon: Settings, label: "Profile", path: "/profile" },
+    ...(isAdmin ? [
+      { icon: Users, label: "Admin", path: "/admin" },
+      { icon: Settings, label: "Settings", path: "/settings" }
+    ] : [])
   ];
 
   return (
@@ -137,6 +159,15 @@ export function BottomNav() {
           </Link>
         );
       })}
+      {!isAdmin && (
+        <button
+          onClick={handleLogout}
+          className="flex flex-col items-center gap-1 px-4 py-2 rounded-xl text-white/60 hover:text-white transition-all"
+        >
+          <LogOut className="w-6 h-6" />
+          <span className="text-[10px] font-bold uppercase tracking-tighter">Sign Out</span>
+        </button>
+      )}
     </nav>
   );
 }

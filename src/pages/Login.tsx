@@ -6,15 +6,38 @@ import { motion } from "motion/react";
 export default function Login() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // In a real app, this would call /api/auth
-    if (username === "admin") {
-      navigate("/admin");
-    } else {
-      navigate("/check-in");
+    setError(null);
+    setLoading(true);
+
+    try {
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password })
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        localStorage.setItem("user", JSON.stringify(data));
+        if (data.role === "admin") {
+          navigate("/admin");
+        } else {
+          navigate("/check-in");
+        }
+      } else {
+        setError(data.error || "Login failed");
+      }
+    } catch (err) {
+      setError("Connection error. Please check your network.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -38,6 +61,11 @@ export default function Login() {
             <h2 className="text-xl font-bold text-on-surface mb-8 text-center tracking-tight">Welcome Back</h2>
             
             <form onSubmit={handleLogin} className="space-y-6">
+              {error && (
+                <div className="bg-error-container text-on-error-container p-3 rounded-lg text-xs font-bold text-center border border-error/20">
+                  {error}
+                </div>
+              )}
               <div>
                 <label className="input-label">Username</label>
                 <div className="relative">
@@ -56,7 +84,6 @@ export default function Login() {
               <div>
                 <div className="flex justify-between items-center mb-1">
                   <label className="input-label">Password</label>
-                  <button type="button" className="text-[10px] uppercase font-bold tracking-wider text-secondary hover:underline">Forgot Access?</button>
                 </div>
                 <div className="relative">
                   <Lock className="absolute left-4 top-3.5 w-5 h-5 text-outline" />
@@ -71,13 +98,17 @@ export default function Login() {
                 </div>
               </div>
 
-              <button type="submit" className="btn-secondary w-full py-4 text-xs font-bold uppercase tracking-widest mt-4">
-                Access System
+              <button 
+                type="submit" 
+                disabled={loading}
+                className="btn-secondary w-full py-4 text-xs font-bold uppercase tracking-widest mt-4 disabled:opacity-50"
+              >
+                {loading ? "Verifying..." : "Access System"}
               </button>
             </form>
 
             <div className="mt-8 text-center">
-              <p className="text-xs text-on-surface-variant font-medium">Use <span className="font-bold">admin</span> for dashboard access</p>
+              <p className="text-[10px] text-on-surface-variant opacity-50 uppercase tracking-[0.3em] font-bold">Secure Biometric Gateway</p>
             </div>
           </div>
 
