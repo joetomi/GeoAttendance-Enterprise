@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { Fingerprint, MapPin, CheckCircle2, XCircle, Loader2, LogOut } from "lucide-react";
+import { Fingerprint, MapPin, CheckCircle2, XCircle, Loader2, LogOut, Globe, ChevronDown, Check } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/src/lib/utils";
+import { Language, translations } from "../constants/translations";
+import { useLanguage } from "../contexts/LanguageContext";
 
 export default function MobileCheckIn() {
   const [status, setStatus] = useState<'idle' | 'checking' | 'success' | 'error'>('idle');
@@ -12,6 +14,14 @@ export default function MobileCheckIn() {
   const [user, setUser] = useState<any>(null);
   const [geofence, setGeofence] = useState<any>(null);
   const navigate = useNavigate();
+
+  const { lang, t, setLanguage } = useLanguage();
+  const [showLangMenu, setShowLangMenu] = useState(false);
+
+  const handleLangChange = (l: Language) => {
+    setLanguage(l);
+    setShowLangMenu(false);
+  };
 
   useEffect(() => {
     const savedUser = localStorage.getItem("user");
@@ -108,44 +118,78 @@ export default function MobileCheckIn() {
   };
 
   return (
-    <div className="min-h-screen bg-surface p-6 pb-24 flex flex-col items-center text-on-surface">
-      <div className="w-full flex justify-between items-center mb-10">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-            <MapPin className="w-5 h-5 text-white" />
+    <div className="min-h-screen bg-black bg-stars text-white flex flex-col items-center p-6 pb-24 overflow-x-hidden" dir={lang === "ar" ? "rtl" : "ltr"}>
+      {/* Header with Language Selector */}
+      <header className="w-full max-w-lg flex justify-between items-center mb-10 pt-4">
+        <div className="flex items-center gap-4">
+          <div className="relative">
+            <button 
+              onClick={() => setShowLangMenu(!showLangMenu)}
+              className="flex items-center gap-2 bg-white/5 border border-white/10 px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-widest"
+            >
+              <span>{t.langFlag}</span>
+              <ChevronDown className={cn("w-3 h-3 transition-transform", showLangMenu && "rotate-180")} />
+            </button>
+            <AnimatePresence>
+              {showLangMenu && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 5 }}
+                  className={cn(
+                    "absolute mt-2 w-32 bg-surface-container-highest border border-white/10 rounded-xl shadow-2xl p-1 z-[100]",
+                    lang === "ar" ? "right-0" : "left-0"
+                  )}
+                >
+                  {(["en", "ar"] as const).map((l) => (
+                    <button
+                      key={l}
+                      onClick={() => handleLangChange(l)}
+                      className={cn(
+                        "w-full flex items-center justify-between px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest",
+                        lang === l ? "bg-primary text-white" : "hover:bg-white/5 text-white/50"
+                      )}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span>{translations[l].langFlag}</span>
+                        <span>{translations[l].langName}</span>
+                      </div>
+                      {lang === l && <Check className="w-3 h-3" />}
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
-          <h1 className="text-xl font-bold text-primary">GeoAttendance</h1>
-        </div>
-        <button 
-          onClick={handleLogout}
-          className="w-10 h-10 rounded-full bg-surface-container shadow-sm border border-outline-variant flex items-center justify-center hover:bg-surface-container-high transition-colors"
-        >
-          <LogOut className="w-5 h-5 text-on-surface-variant" />
-        </button>
-      </div>
-
-      <motion.div 
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="w-full text-center mt-4"
-      >
-        <h2 className="text-3xl font-bold text-on-surface tracking-tight">Welcome, {user?.name || 'Employee'}</h2>
-        <p className="text-on-surface-variant font-medium mt-1">Enterprise HQ • {user?.role === 'admin' ? 'Administrator' : 'Personnel'}</p>
-      </motion.div>
-
-      <div className="w-full mt-10 p-6 bg-surface-container rounded-3xl shadow-xl shadow-black/10 flex items-center justify-between">
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant opacity-60">Session Status</p>
-          <div className="flex items-center gap-2 mt-1">
-            <div className={cn("w-2.5 h-2.5 rounded-full animate-pulse", currentMode === 'In' ? "bg-secondary" : "bg-on-surface-variant/20")} />
-            <p className={cn("text-lg font-bold", currentMode === 'In' ? "text-secondary" : "text-on-surface")}>
-              {currentMode === 'In' ? "Checked In" : "Not Active"}
+          <div>
+            <h2 className="text-xl font-bold leading-none">{t.welcomeUser}, {user?.name || user?.username}</h2>
+            <p className="text-[10px] uppercase font-bold tracking-[0.2em] text-white/40 mt-1.5 flex items-center gap-2">
+              Enterprise HQ • Personnel
             </p>
           </div>
         </div>
-        <div className="text-right">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant opacity-60">Accuracy</p>
-          <p className="text-lg font-bold text-on-surface">+/- 2.4m</p>
+        <button 
+          onClick={handleLogout}
+          className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center border border-white/10 active:scale-95 transition-all text-white/40"
+        >
+          <LogOut className="w-4 h-4" />
+        </button>
+      </header>
+
+      {/* Accuracy & Status */}
+      <div className="w-full max-w-lg grid grid-cols-2 gap-4 mb-8">
+        <div className="bg-white/5 border border-white/10 rounded-[32px] p-6 flex flex-col justify-between h-32 bg-pattern-wavy">
+          <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/40">{t.sessionStatus}</span>
+          <div className="flex items-center gap-2">
+            <div className={cn("w-2 h-2 rounded-full", currentMode === 'In' ? "bg-emerald-500 shadow-[0_0_8px_var(--color-emerald-500)]" : "bg-white/20")} />
+            <span className="text-sm font-bold">{currentMode === 'In' ? 'Active' : t.notActive}</span>
+          </div>
+        </div>
+        <div className="bg-white/5 border border-white/10 rounded-[32px] p-6 flex flex-col justify-between h-32 bg-pattern-wavy">
+          <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/40">{t.accuracy}</span>
+          <div className="flex items-center gap-1">
+            <span className="text-xl font-bold">+/- 2.4m</span>
+          </div>
         </div>
       </div>
 
@@ -161,25 +205,31 @@ export default function MobileCheckIn() {
               className={cn(
                 "relative w-64 h-64 rounded-full flex flex-col items-center justify-center shadow-2xl active:scale-95 transition-all group overflow-hidden",
                 currentMode === 'Out' 
-                  ? "bg-primary-container shadow-primary-container/40" 
-                  : "bg-red-500 shadow-red-500/40"
+                  ? "bg-emerald-600/10 border-4 border-emerald-500/20 shadow-emerald-500/10" 
+                  : "bg-amber-600/10 border-4 border-amber-500/20 shadow-amber-500/10"
               )}
             >
-              <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity" />
-              <Fingerprint className="w-24 h-24 text-white mb-4" />
-              <span className="text-xs font-bold text-white uppercase tracking-[0.2em]">
-                {currentMode === 'Out' ? "Tap to Check In" : "Tap to Check Out"}
+              <div className={cn(
+                "absolute inset-0 opacity-40 transition-opacity duration-700 group-hover:opacity-60",
+                currentMode === 'Out' 
+                  ? "bg-[radial-gradient(circle_at_center,var(--color-emerald-500)_0%,transparent_70%)]" 
+                  : "bg-[radial-gradient(circle_at_center,var(--color-amber-500)_0%,transparent_70%)]"
+              )} />
+              
+              <Fingerprint className={cn(
+                "w-24 h-24 mb-6 transition-all duration-500",
+                currentMode === 'Out' ? "text-emerald-500" : "text-amber-500"
+              )} />
+              
+              <span className="text-[10px] font-black uppercase tracking-[0.3em] z-10">
+                {currentMode === 'Out' ? t.tapToCheckIn : t.tapToCheckOut}
               </span>
               
               {/* Animated rings */}
               <div className={cn(
                 "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-72 rounded-full border-2 animate-ping",
-                currentMode === 'Out' ? "border-primary-container/20" : "border-red-500/20"
+                currentMode === 'Out' ? "border-emerald-500/20" : "border-amber-500/20"
               )} />
-              <div className={cn(
-                "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 rounded-full border animate-ping",
-                currentMode === 'Out' ? "border-primary-container/10" : "border-red-500/10"
-              )} style={{ animationDelay: '0.5s' }} />
             </motion.button>
           )}
 
@@ -191,9 +241,9 @@ export default function MobileCheckIn() {
               exit={{ scale: 1.2, opacity: 0 }}
               className="flex flex-col items-center"
             >
-              <Loader2 className="w-24 h-24 text-secondary animate-spin mb-6" />
+              <Loader2 className="w-24 h-24 text-primary animate-spin mb-6" />
               <p className="text-sm font-bold uppercase tracking-widest text-on-surface-variant animate-pulse">
-                {currentMode === 'Out' ? "Verifying Geofence..." : "Logging Out..."}
+                {t.checkingLocation}
               </p>
             </motion.div>
           )}
@@ -207,23 +257,14 @@ export default function MobileCheckIn() {
             >
               <div className={cn(
                 "w-48 h-48 rounded-full flex items-center justify-center mb-8 shadow-xl",
-                currentMode === 'In' ? "bg-secondary-container shadow-secondary/10" : "bg-red-900/40 shadow-red-900/20"
+                currentMode === 'In' ? "bg-emerald-900/40 shadow-emerald-500/10" : "bg-amber-900/40 shadow-amber-500/10"
               )}>
-                <CheckCircle2 className={cn("w-24 h-24", currentMode === 'In' ? "text-secondary" : "text-red-500")} />
+                <CheckCircle2 className={cn("w-24 h-24", currentMode === 'In' ? "text-emerald-500" : "text-amber-500")} />
               </div>
-              <h3 className="text-2xl font-bold text-on-surface">
-                {currentMode === 'In' ? "Checked In!" : "Checked Out!"}
+              <h3 className="text-2xl font-bold text-on-surface uppercase tracking-widest leading-loose">
+                {currentMode === 'In' ? t.checkInSuccess : t.checkOutSuccess}
               </h3>
-              <p className="text-on-surface-variant mt-2">Time: {new Date().toLocaleTimeString()}</p>
-              <button 
-                onClick={() => setStatus('idle')}
-                className={cn(
-                  "mt-8 text-xs font-bold uppercase tracking-widest hover:underline",
-                  currentMode === 'In' ? "text-secondary" : "text-red-500"
-                )}
-              >
-                Done
-              </button>
+              <p className="text-on-surface-variant mt-2 font-mono">{new Date().toLocaleTimeString()}</p>
             </motion.div>
           )}
 
@@ -234,16 +275,22 @@ export default function MobileCheckIn() {
               animate={{ scale: 1, opacity: 1 }}
               className="flex flex-col items-center p-6 text-center"
             >
-              <div className="w-48 h-48 bg-error-container rounded-full flex items-center justify-center mb-8 shadow-xl shadow-error/10">
-                <XCircle className="w-24 h-24 text-error" />
+              <div className="mb-8 p-4 bg-white/5 border border-white/10 rounded-2xl">
+                <p className="text-[10px] uppercase font-bold tracking-[0.3em] text-red-500">
+                  Authentication Restricted
+                </p>
               </div>
-              <h3 className="text-2xl font-bold text-on-surface">Action Failed</h3>
-              <p className="text-on-surface-variant mt-2 max-w-xs">{locationError || `You must be within the designated ${geofence?.name || 'Area'} zone.`}</p>
+              <h3 className="text-2xl font-bold text-white uppercase tracking-widest leading-loose">
+                {t.actionFailed}
+              </h3>
+              <p className="text-white/60 mt-2 max-w-xs text-sm font-medium">
+                {locationError || t.outsideFence}
+              </p>
               <button 
                 onClick={() => setStatus('idle')}
-                className="btn-primary mt-8 py-3 px-8"
+                className="mt-10 px-8 py-3 bg-white/5 border border-white/10 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-white/10 transition-all active:scale-95"
               >
-                Try Again
+                {t.tryAgain}
               </button>
             </motion.div>
           )}
@@ -256,8 +303,8 @@ export default function MobileCheckIn() {
         </p>
       </div>
 
-      <div className="w-full bg-surface-container rounded-3xl p-4 flex items-center gap-4 mb-2 shadow-sm border border-outline-variant">
-        <div className="w-12 h-12 bg-surface-container rounded-2xl flex items-center justify-center overflow-hidden">
+      <div className="w-full bg-white/5 border border-white/10 rounded-3xl p-4 flex items-center gap-4 mb-2 shadow-sm bg-pattern-wavy">
+        <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center overflow-hidden grayscale">
           <img 
             src="https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?q=80&w=200&auto=format&fit=crop" 
             alt="HQ" 
@@ -265,13 +312,13 @@ export default function MobileCheckIn() {
           />
         </div>
         <div className="flex-1">
-          <p className="text-sm font-bold text-on-surface">{geofence?.name || "Loading Region..."}</p>
+          <p className="text-sm font-bold text-on-surface">{geofence?.name || "Loading..."}</p>
           <div className="flex items-center gap-2">
-            <div className={cn("w-1.5 h-1.5 rounded-full", currentMode === 'In' ? "bg-secondary" : "bg-on-surface-variant/30")} />
-            <p className={cn("text-[10px] uppercase font-bold tracking-wider", currentMode === 'In' ? "text-secondary" : "text-on-surface-variant")}>Active Perimeter</p>
+            <div className={cn("w-1.5 h-1.5 rounded-full", currentMode === 'In' ? "bg-emerald-500" : "bg-white/20")} />
+            <p className={cn("text-[10px] uppercase font-bold tracking-wider", currentMode === 'In' ? "text-emerald-500" : "text-on-surface-variant")}>{t.activePerimeter}</p>
           </div>
         </div>
-        <p className="text-xs font-bold text-secondary">{geofence?.radius || 0}m Radius</p>
+        <p className="text-xs font-bold">{geofence?.radius || 0}m Radius</p>
       </div>
     </div>
   );

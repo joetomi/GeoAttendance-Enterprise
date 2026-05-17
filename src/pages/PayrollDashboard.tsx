@@ -16,10 +16,16 @@ import { Header } from "../components/Navigation";
 import { cn } from "@/src/lib/utils";
 import { Employee } from "../types";
 
+import { Language, translations } from "../constants/translations";
+import { useLanguage } from "../contexts/LanguageContext";
+
 export default function PayrollDashboard() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>("");
   const [loading, setLoading] = useState(false);
+  
+  const { lang, t } = useLanguage();
+
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ type: "success" | "error", text: string } | null>(null);
 
@@ -226,25 +232,49 @@ export default function PayrollDashboard() {
     }
   };
 
+  const toggleWeekend = (day: number) => {
+    const current = payrollConfig.weekends.split(',').filter(x => x !== "").map(Number);
+    let updated;
+    if (current.includes(day)) {
+      updated = current.filter(d => d !== day);
+    } else {
+      updated = [...current, day].sort();
+    }
+    setPayrollConfig({ ...payrollConfig, weekends: updated.join(',') });
+  };
+
+  const dayMapping = [
+    { id: 6, label: t.days[0] }, // Sat
+    { id: 0, label: t.days[1] }, // Sun
+    { id: 1, label: t.days[2] }, // Mon
+    { id: 2, label: t.days[3] }, // Tue
+    { id: 3, label: t.days[4] }, // Wed
+    { id: 4, label: t.days[5] }, // Thu
+    { id: 5, label: t.days[6] }, // Fri
+  ];
+
   return (
-    <div className="min-h-screen bg-surface">
-      <Header title="Deductions & Payroll" />
+    <div className="min-h-screen bg-surface bg-stars" dir={lang === "ar" ? "rtl" : "ltr"}>
+      <Header title={t.navPayroll} />
       
-      <main className="lg:pl-[312px] p-8 pb-32">
+      <main className="lg:pl-[312px] rtl:lg:pl-8 rtl:lg:pr-[312px] p-8 pb-32 transition-all">
         <div className="max-w-7xl mx-auto">
           
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10">
             <div>
-              <h2 className="text-3xl font-bold text-on-surface tracking-tight">Payroll Management</h2>
-              <p className="text-on-surface-variant opacity-70 mt-1">Configure individual salary structures and automated deduction logic.</p>
+              <h2 className="text-3xl font-bold text-on-surface tracking-tight">{t.payrollTitle}</h2>
+              <p className="text-on-surface-variant opacity-70 mt-1">{t.payrollSub}</p>
             </div>
             
             <div className="flex items-center gap-3 bg-surface-container-high p-1.5 rounded-2xl border border-outline-variant/30">
-              <Users className="w-4 h-4 text-primary ml-3" />
+              <Users className={cn("w-4 h-4 text-primary", lang === "ar" ? "mr-3" : "ml-3")} />
               <select 
                 value={selectedEmployeeId}
                 onChange={(e) => setSelectedEmployeeId(e.target.value)}
-                className="bg-transparent border-none focus:ring-0 text-sm font-bold text-on-surface py-2 pr-8"
+                className={cn(
+                  "bg-transparent border-none focus:ring-0 text-sm font-bold text-primary py-2",
+                  lang === "ar" ? "pl-8 pr-2" : "pr-8 pl-2"
+                )}
               >
                 {employees.map(emp => (
                   <option key={emp.id} value={emp.id}>{emp.name} (@{emp.username})</option>
@@ -257,74 +287,93 @@ export default function PayrollDashboard() {
             
             {/* Left Col: Configuration Form */}
             <div className="xl:col-span-2 space-y-8">
-              <form onSubmit={handleSaveConfig} className="card p-8 bg-surface-container border border-outline-variant/20 shadow-xl">
+              <form onSubmit={handleSaveConfig} className="card p-8 bg-surface-container border border-outline-variant/20 shadow-xl bg-pattern-wavy">
                 <div className="flex items-center gap-3 mb-8">
                   <div className="bg-primary/10 p-2.5 rounded-xl">
                     <Settings2 className="w-6 h-6 text-primary" />
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold text-on-surface">Employee Configuration</h3>
-                    <p className="text-xs text-on-surface-variant opacity-60 font-medium uppercase tracking-widest mt-1">Salary & Thresholds</p>
+                    <h3 className="text-xl font-bold text-on-surface">{lang === "ar" ? "تكوين الموظف" : "Employee Configuration"}</h3>
+                    <p className="text-xs text-on-surface-variant opacity-60 font-medium uppercase tracking-widest mt-1">{lang === "ar" ? "الراتب والعتبات" : "Salary & Thresholds"}</p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
                    <div className="space-y-2">
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant opacity-70">Base Monthly Salary (LYD)</label>
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant opacity-70">{t.baseSalary}</label>
                     <div className="relative">
-                      <Banknote className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant opacity-40" />
+                      <Banknote className={cn("absolute top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant opacity-40", lang === "ar" ? "right-4" : "left-4")} />
                       <input 
                         type="number" 
                         value={payrollConfig.baseSalary}
                         onChange={(e) => setPayrollConfig(prev => ({ ...prev, baseSalary: parseFloat(e.target.value) || 0 }))}
-                        className="w-full bg-surface-container-high border border-outline-variant rounded-xl pl-12 pr-4 py-3 text-on-surface focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                        className={cn(
+                          "w-full bg-surface-container-high border border-outline-variant rounded-xl py-3 text-on-surface focus:ring-2 focus:ring-primary/20 outline-none transition-all",
+                          lang === "ar" ? "pr-12 pl-4" : "pl-12 pr-4"
+                        )}
                         placeholder="0.00"
                       />
                     </div>
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant opacity-70">Grace Period (Minutes)</label>
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant opacity-70">{t.gracePeriod}</label>
                     <div className="relative">
-                      <Clock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant opacity-40" />
+                      <Clock className={cn("absolute top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant opacity-40", lang === "ar" ? "right-4" : "left-4")} />
                       <input 
                         type="number" 
                         value={payrollConfig.gracePeriodMinutes}
                         onChange={(e) => setPayrollConfig(prev => ({ ...prev, gracePeriodMinutes: parseInt(e.target.value) || 0 }))}
-                        className="w-full bg-surface-container-high border border-outline-variant rounded-xl pl-12 pr-4 py-3 text-on-surface focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                        className={cn(
+                          "w-full bg-surface-container-high border border-outline-variant rounded-xl py-3 text-on-surface focus:ring-2 focus:ring-primary/20 outline-none transition-all",
+                          lang === "ar" ? "pr-12 pl-4" : "pl-12 pr-4"
+                        )}
                       />
                     </div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8 p-6 bg-surface-container-high rounded-2xl border border-outline-variant/30 mb-8">
-                   <div className="space-y-2">
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant opacity-70">Weekends (CSV Indexes)</label>
-                    <input 
-                      type="text" 
-                      value={payrollConfig.weekends}
-                      onChange={(e) => setPayrollConfig(prev => ({ ...prev, weekends: e.target.value }))}
-                      className="w-full bg-surface border border-outline-variant rounded-lg px-4 py-2 text-sm text-on-surface"
-                      placeholder="0,6 (0=Sun, 6=Sat)"
-                    />
+                <div className="grid grid-cols-1 gap-8 p-6 bg-surface-container-high rounded-2xl border border-outline-variant/30 mb-8">
+                  <div className="space-y-4">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant opacity-70">{t.weekends}</label>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-3">
+                      {dayMapping.map((day) => (
+                        <button
+                          key={day.id}
+                          type="button"
+                          onClick={() => toggleWeekend(day.id)}
+                          className={cn(
+                            "px-3 py-2 rounded-xl text-[10px] font-bold uppercase tracking-tight transition-all border",
+                            payrollConfig.weekends.split(',').includes(day.id.toString())
+                              ? "bg-primary text-white border-primary shadow-lg shadow-primary/20"
+                              : "bg-surface border-outline-variant text-on-surface-variant hover:border-primary/50"
+                          )}
+                        >
+                          {day.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant opacity-70">Half-Day Threshold (Min)</label>
-                    <input 
-                      type="number" 
-                      value={payrollConfig.halfDayThresholdMinutes}
-                      onChange={(e) => setPayrollConfig(prev => ({ ...prev, halfDayThresholdMinutes: parseInt(e.target.value) || 0 }))}
-                      className="w-full bg-surface border border-outline-variant rounded-lg px-4 py-2 text-sm text-on-surface"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant opacity-70">Full-Day Threshold (Min)</label>
-                    <input 
-                      type="number" 
-                      value={payrollConfig.fullDayThresholdMinutes}
-                      onChange={(e) => setPayrollConfig(prev => ({ ...prev, fullDayThresholdMinutes: parseInt(e.target.value) || 0 }))}
-                      className="w-full bg-surface border border-outline-variant rounded-lg px-4 py-2 text-sm text-on-surface"
-                    />
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant opacity-70">{t.halfDayThreshold}</label>
+                      <input 
+                        type="number" 
+                        value={payrollConfig.halfDayThresholdMinutes}
+                        onChange={(e) => setPayrollConfig(prev => ({ ...prev, halfDayThresholdMinutes: parseInt(e.target.value) || 0 }))}
+                        className="w-full bg-surface border border-outline-variant rounded-lg px-4 py-2 text-sm text-on-surface"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant opacity-70">{t.fullDayThreshold}</label>
+                      <input 
+                        type="number" 
+                        value={payrollConfig.fullDayThresholdMinutes}
+                        onChange={(e) => setPayrollConfig(prev => ({ ...prev, fullDayThresholdMinutes: parseInt(e.target.value) || 0 }))}
+                        className="w-full bg-surface border border-outline-variant rounded-lg px-4 py-2 text-sm text-on-surface"
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -337,34 +386,47 @@ export default function PayrollDashboard() {
                   <button 
                     type="submit" 
                     disabled={saving}
-                    className="ml-auto flex items-center gap-2 bg-primary text-white px-8 py-3 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 disabled:opacity-50"
+                    className={cn(
+                      "flex items-center gap-2 bg-primary text-white px-8 py-3 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 disabled:opacity-50",
+                      lang === "ar" ? "mr-auto" : "ml-auto"
+                    )}
                   >
-                    {saving ? "Saving..." : "Save Configuration"}
+                    {saving ? (lang === "ar" ? "جاري الحفظ..." : "Saving...") : t.saveConfig}
                   </button>
                 </div>
               </form>
 
               {/* Deduction Logic Info Panel */}
-              <div className="card p-8 bg-surface-container border border-outline-variant/30 flex flex-col md:flex-row gap-8">
+              <div className="card p-8 bg-surface-container border border-outline-variant/30 flex flex-col md:flex-row gap-8 bg-pattern-wavy">
                 <div className="flex-1 space-y-4">
                   <div className="flex items-center gap-2">
                     <AlertCircle className="w-5 h-5 text-amber-500" />
-                    <h4 className="font-bold text-on-surface">Condition A: Half-Day Cut</h4>
+                    <h4 className="font-bold text-on-surface">{t.conditionA}</h4>
                   </div>
                   <p className="text-sm text-on-surface-variant opacity-70 leading-relaxed">
-                    If check-in exceeds grace period by <span className="text-primary font-bold">{payrollConfig.halfDayThresholdMinutes} minutes</span>, 
-                    the system automatically deducts 50% of the daily prorated rate.
+                    {lang === "ar" 
+                      ? "إذا تجاوز تسجيل الحضور فترة السماح بمقدار " 
+                      : "If check-in exceeds grace period by "}
+                    <span className="text-primary font-bold">{payrollConfig.halfDayThresholdMinutes} {lang === "ar" ? "دقيقة" : "minutes"}</span>, 
+                    {lang === "ar" 
+                      ? " سيقوم النظام تلقائياً بخصم 50% من المعدل اليومي المنسوب." 
+                      : " the system automatically deducts 50% of the daily prorated rate."}
                   </p>
                 </div>
-                <div className="w-[1px] bg-outline-variant/30 hidden md:block" />
+                <div className={cn("w-[1px] bg-outline-variant/30 hidden md:block", lang === "ar" ? "order-last" : "")} />
                 <div className="flex-1 space-y-4">
                   <div className="flex items-center gap-2">
                     <AlertCircle className="w-5 h-5 text-red-500" />
-                    <h4 className="font-bold text-on-surface">Condition B: Full-Day Cut</h4>
+                    <h4 className="font-bold text-on-surface">{t.conditionB}</h4>
                   </div>
                   <p className="text-sm text-on-surface-variant opacity-70 leading-relaxed">
-                    If check-in exceeds <span className="text-primary font-bold">{payrollConfig.fullDayThresholdMinutes} minutes</span> or 
-                    status is "Absent", a 100% deduction is applied to that specific date.
+                    {lang === "ar" 
+                      ? "إذا تجاوز تسجيل الحضور " 
+                      : "If check-in exceeds "}
+                    <span className="text-primary font-bold">{payrollConfig.fullDayThresholdMinutes} {lang === "ar" ? "دقيقة" : "minutes"}</span> 
+                    {lang === "ar" 
+                      ? " أو كانت الحالة 'غائب'، سيتم تطبيق خصم 100% على ذلك التاريخ المحدد." 
+                      : " or status is \"Absent\", a 100% deduction is applied to that specific date."}
                   </p>
                 </div>
               </div>
@@ -372,40 +434,38 @@ export default function PayrollDashboard() {
 
             {/* Right Col: Reports & Export */}
             <div className="xl:col-span-1 space-y-8">
-              <div className="card p-8 bg-surface-container border border-outline-variant/20 shadow-xl overflow-hidden relative">
-                <div className="absolute top-0 right-0 p-4 opacity-10">
+              <div className="card p-8 bg-surface-container border border-outline-variant/20 shadow-xl overflow-hidden relative bg-pattern-wavy">
+                <div className={cn("absolute top-0 p-4 opacity-10", lang === "ar" ? "left-0" : "right-0")}>
                   <FileSpreadsheet className="w-32 h-32 text-primary" />
                 </div>
                 
-                <h3 className="text-xl font-bold text-on-surface mb-6">Payroll Reporting</h3>
+                <h3 className="text-xl font-bold text-on-surface mb-6">{lang === "ar" ? "تقارير الرواتب" : "Payroll Reporting"}</h3>
                 
                 <div className="space-y-6">
                   <div className="space-y-2">
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant opacity-70">Target Month</label>
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant opacity-70">{t.targetMonth}</label>
                     <div className="relative">
-                      <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant opacity-40" />
+                      <Calendar className={cn("absolute top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant opacity-40", lang === "ar" ? "right-4" : "left-4")} />
                       <input 
                         type="month" 
                         value={selectedMonth}
                         onChange={(e) => setSelectedMonth(e.target.value)}
-                        className="w-full bg-surface-container-high border border-outline-variant rounded-xl pl-12 pr-4 py-3 text-on-surface focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                        className={cn(
+                          "w-full bg-surface-container-high border border-outline-variant rounded-xl py-3 text-on-surface focus:ring-2 focus:ring-primary/20 outline-none transition-all",
+                          lang === "ar" ? "pr-12 pl-4" : "pl-12 pr-4"
+                        )}
                       />
                     </div>
                   </div>
 
                   <div className="p-6 bg-surface-container-high rounded-2xl border border-outline-variant/30 space-y-4">
                     <div className="flex justify-between items-center text-xs">
-                      <span className="text-on-surface-variant font-medium">Selected Period</span>
-                      <span className="font-bold text-on-surface">{new Date(selectedMonth).toLocaleString('default', { month: 'long', year: 'numeric' })}</span>
+                      <span className="text-on-surface-variant font-medium">{lang === "ar" ? "الفترة المختارة" : "Selected Period"}</span>
+                      <span className="font-bold text-on-surface">{new Date(selectedMonth).toLocaleString(lang === "ar" ? 'ar-LY' : 'default', { month: 'long', year: 'numeric' })}</span>
                     </div>
                     <div className="flex justify-between items-center text-xs">
-                      <span className="text-on-surface-variant font-medium">Employee Name</span>
-                      <span className="font-bold text-on-surface">{employees.find(e => e.id === selectedEmployeeId)?.name || "N/A"}</span>
-                    </div>
-                    <div className="pt-4 border-t border-outline-variant/30">
-                      <p className="text-[9px] text-center uppercase tracking-widest font-bold text-on-surface-variant opacity-40">
-                        Exports realMicrosoft Excel format
-                      </p>
+                      <span className="text-on-surface-variant font-medium">{t.employee}</span>
+                      <span className="font-bold text-on-surface">{employees.find(e => e.id === selectedEmployeeId)?.name || (lang === "ar" ? "غير متوفر" : "N/A")}</span>
                     </div>
                   </div>
 
@@ -415,7 +475,7 @@ export default function PayrollDashboard() {
                     className="w-full flex items-center justify-center gap-3 bg-emerald-600 text-white px-8 py-4 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20 disabled:opacity-50"
                   >
                     <Download className="w-4 h-4" />
-                    {loading ? "Processing..." : "Export Payroll Report"}
+                    {loading ? (lang === "ar" ? "جاري المعالجة..." : "Processing...") : t.payrollReport}
                   </button>
                 </div>
               </div>

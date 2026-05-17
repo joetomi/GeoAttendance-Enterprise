@@ -25,6 +25,10 @@
   
   --color-error: #ef4444;
   --color-error-container: #450a0a;
+
+  /* Background Patterns */
+  --pattern-stars: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300' viewBox='0 0 300 300'%3E%3Ccircle cx='50' cy='50' r='0.8' fill='white' fill-opacity='0.15'/%3E%3Ccircle cx='120' cy='30' r='1.2' fill='white' fill-opacity='0.1'/%3E%3Ccircle cx='250' cy='80' r='1' fill='white' fill-opacity='0.12'/%3E%3Ccircle cx='180' cy='150' r='0.6' fill='white' fill-opacity='0.14'/%3E%3Ccircle cx='30' cy='220' r='1' fill='white' fill-opacity='0.11'/%3E%3Ccircle cx='140' cy='270' r='0.8' fill='white' fill-opacity='0.13'/%3E%3Ccircle cx='280' cy='230' r='1.1' fill='white' fill-opacity='0.1'/%3E%3Ccircle cx='210' cy='40' r='0.7' fill='white' fill-opacity='0.15'/%3E%3C/svg%3E");
+  --pattern-wavy: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 180 180'%3E%3Cpath d='M0 20 Q 45 0, 90 20 T 180 20' fill='none' stroke='rgba(255, 255, 255, 0.04)' stroke-width='1'/%3E%3Cpath d='M0 50 Q 45 30, 90 50 T 180 50' fill='none' stroke='rgba(255, 255, 255, 0.04)' stroke-width='1'/%3E%3Cpath d='M0 80 Q 45 60, 90 80 T 180 80' fill='none' stroke='rgba(255, 255, 255, 0.04)' stroke-width='1'/%3E%3Cpath d='M0 110 Q 45 90, 90 110 T 180 110' fill='none' stroke='rgba(255, 255, 255, 0.04)' stroke-width='1'/%3E%3Cpath d='M0 140 Q 45 120, 90 140 T 180 140' fill='none' stroke='rgba(255, 255, 255, 0.04)' stroke-width='1'/%3E%3Cpath d='M0 170 Q 45 150, 90 170 T 180 170' fill='none' stroke='rgba(255, 255, 255, 0.04)' stroke-width='1'/%3E%3C/svg%3E");
 }
 
 @layer base {
@@ -38,6 +42,15 @@
     @apply bg-surface-container border border-outline-variant rounded-xl shadow-sm overflow-hidden;
   }
   
+  .bg-stars {
+    background-image: var(--pattern-stars);
+  }
+
+  .bg-pattern-wavy {
+    background-image: var(--pattern-wavy);
+    background-size: 180px;
+  }
+
   .input-label {
     @apply text-xs font-medium uppercase tracking-wider text-on-surface-variant mb-1 block;
   }

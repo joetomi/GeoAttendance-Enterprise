@@ -6,12 +6,18 @@ import { Employee } from "../types";
 import { cn } from "@/src/lib/utils";
 import { Header } from "../components/Navigation";
 
+import { Language, translations } from "../constants/translations";
+import { useLanguage } from "../contexts/LanguageContext";
+
 export default function AdminDashboard() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [attendance, setAttendance] = useState<any[]>([]);
   const [onlineUsers, setOnlineUsers] = useState<Employee[]>([]);
   const [stats, setStats] = useState({ totalEmployees: 0, activeToday: 0, onlineNow: 0, totalLogs: 0 });
   const [loading, setLoading] = useState(true);
+  
+  const { lang, t } = useLanguage();
+
   const [initialLoading, setInitialLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
@@ -303,20 +309,20 @@ export default function AdminDashboard() {
   const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
 
   return (
-    <div className="min-h-screen bg-surface">
-      <Header title="Manage Employees" />
+    <div className="min-h-screen bg-surface bg-stars" dir={lang === "ar" ? "rtl" : "ltr"}>
+      <Header title={t.navEmployees} />
       
-      <main className="lg:pl-[312px] p-8 pb-32">
+      <main className="lg:pl-[312px] rtl:lg:pl-8 rtl:lg:pr-[312px] p-8 pb-32 transition-all">
         <div className="max-w-7xl mx-auto">
           {/* Stats Bar */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             {[
-              { label: "Total Accounts", value: stats.totalEmployees, color: "bg-primary-container", icon: <Users className="w-6 h-6" /> },
-              { label: "Active Today", value: stats.activeToday, color: "bg-secondary", icon: <ShieldCheck className="w-6 h-6" /> },
+              { label: t.statsTotalEmployees, value: stats.totalEmployees, color: "bg-primary-container", icon: <Users className="w-6 h-6" /> },
+              { label: t.statsAttendanceRate, value: stats.activeToday, color: "bg-secondary", icon: <ShieldCheck className="w-6 h-6" /> },
               { label: "Online Now", value: stats.onlineNow, color: "bg-emerald-500", icon: <div className="w-3 h-3 bg-white rounded-full animate-pulse" /> },
               { label: "Archived Logs", value: stats.totalLogs, color: "bg-primary", icon: <ShieldCheck className="w-6 h-6" /> }
             ].map((stat, i) => (
-              <div key={i} className="card p-6 flex items-center justify-between">
+              <div key={i} className="card p-6 flex items-center justify-between bg-pattern-wavy">
                 <div>
                   <p className="text-xs font-bold text-on-surface-variant uppercase tracking-widest">{stat.label}</p>
                   <p className="text-3xl font-bold text-on-surface mt-1">{stat.value}</p>
@@ -330,25 +336,25 @@ export default function AdminDashboard() {
 
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 mb-8">
             <div className="xl:col-span-12">
-              <div className="card p-6 bg-surface-container">
+              <div className="card p-6 bg-surface-container bg-pattern-wavy">
                 <div className="flex items-center gap-3 mb-6">
-                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <h4 className="text-xs font-bold uppercase tracking-[0.2em] text-on-surface">Personnel Live Status</h4>
+                   <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                   <h4 className="text-xs font-bold uppercase tracking-[0.2em] text-on-surface">{t.liveStatus}</h4>
                 </div>
                 <div className="flex flex-wrap gap-4">
-                  {onlineUsers.length === 0 ? (
-                    <p className="text-xs text-on-surface-variant opacity-60 italic">No personnel currently on-site.</p>
-                  ) : (
-                    onlineUsers.map(user => (
-                      <div key={user.id} className="flex items-center gap-3 bg-surface p-2 pr-4 rounded-2xl border border-outline-variant transition-transform hover:scale-105">
-                        <img src={user.avatar} className="w-8 h-8 rounded-full border border-secondary/30" alt="" />
-                        <div>
-                          <p className="text-xs font-bold text-on-surface leading-tight">{user.name}</p>
-                          <p className="text-[10px] text-emerald-500 font-bold uppercase tracking-tighter">Live Now</p>
-                        </div>
-                      </div>
-                    ))
-                  )}
+                   {onlineUsers.length === 0 ? (
+                     <p className="text-xs text-on-surface-variant opacity-60 italic">{t.noPersonnel}</p>
+                   ) : (
+                     onlineUsers.map(user => (
+                       <div key={user.id} className="flex items-center gap-3 bg-surface p-2 pr-4 rounded-2xl border border-outline-variant transition-transform hover:scale-105">
+                         <img src={user.avatar} className="w-8 h-8 rounded-full border border-secondary/30" alt="" />
+                         <div>
+                           <p className="text-xs font-bold text-on-surface leading-tight">{user.name}</p>
+                           <p className="text-[10px] text-emerald-500 font-bold uppercase tracking-tighter">{t.liveNow}</p>
+                         </div>
+                       </div>
+                     ))
+                   )}
                 </div>
               </div>
             </div>
@@ -359,23 +365,23 @@ export default function AdminDashboard() {
             <div className="xl:col-span-2">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
                 <div>
-                  <h3 className="text-2xl font-bold text-on-surface tracking-tight">Employee Directory</h3>
-                  <p className="text-sm text-on-surface-variant">Manage and authorize corporate staff.</p>
+                  <h3 className="text-2xl font-bold text-on-surface tracking-tight">{t.navEmployees}</h3>
+                  <p className="text-sm text-on-surface-variant">{lang === "ar" ? "إدارة وتفويض موظفي الشركة." : "Manage and authorize corporate staff."}</p>
                 </div>
                 <button id="add-employee-btn" onClick={() => setShowModal(true)} className="btn-primary">
                   <Plus className="w-5 h-5" />
-                  Add Employee
+                  {lang === "ar" ? "إضافة موظف" : "Add Employee"}
                 </button>
               </div>
 
-              <div className="card overflow-hidden">
+              <div className="card overflow-hidden bg-pattern-wavy">
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
+                  <table className="w-full text-left border-collapse rtl:text-right">
                     <thead className="bg-surface-container-high border-b border-outline-variant">
                       <tr>
-                        <th className="px-6 py-4 text-xs font-bold text-on-surface-variant uppercase tracking-wider">Employee</th>
-                        <th className="px-6 py-4 text-xs font-bold text-on-surface-variant uppercase tracking-wider">Department</th>
-                        <th className="px-6 py-4 text-xs font-bold text-on-surface-variant uppercase tracking-wider">Actions</th>
+                        <th className="px-6 py-4 text-xs font-bold text-on-surface-variant uppercase tracking-wider">{t.employee}</th>
+                        <th className="px-6 py-4 text-xs font-bold text-on-surface-variant uppercase tracking-wider">{t.department}</th>
+                        <th className="px-6 py-4 text-xs font-bold text-on-surface-variant uppercase tracking-wider">{lang === "ar" ? "الإجراءات" : "Actions"}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-outline-variant">
@@ -449,14 +455,14 @@ export default function AdminDashboard() {
             <div className="xl:col-span-1">
               <div className="flex flex-col gap-6 mb-8">
                 <div>
-                  <h3 className="text-2xl font-bold text-on-surface tracking-tight">Activity Logs</h3>
-                  <p className="text-sm text-on-surface-variant">Real-time attendance streams.</p>
+                  <h3 className="text-2xl font-bold text-on-surface tracking-tight">{t.activityLogs}</h3>
+                  <p className="text-sm text-on-surface-variant">{t.activitySub}</p>
                 </div>
 
-                <div className="card p-4 bg-surface-container-high border border-outline-variant/30">
+                <div className="card p-4 bg-surface-container-high border border-outline-variant/30 bg-pattern-wavy">
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
                     <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant opacity-60">From Date</label>
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant opacity-60">{t.fromDate}</label>
                       <input 
                         type="date" 
                         value={filterStartDate}
@@ -465,7 +471,7 @@ export default function AdminDashboard() {
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant opacity-60">To Date</label>
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant opacity-60">{t.toDate}</label>
                       <input 
                         type="date" 
                         value={filterEndDate}
@@ -474,13 +480,13 @@ export default function AdminDashboard() {
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant opacity-60">Employee</label>
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant opacity-60">{t.employee}</label>
                       <select 
                         value={filterEmployeeId}
                         onChange={(e) => setFilterEmployeeId(e.target.value)}
-                        className="w-full bg-surface-container border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20"
+                        className="w-full bg-surface-container border border-outline-variant rounded-lg px-3 py-2 text-sm text-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                       >
-                        <option value="all">All Employees</option>
+                        <option value="all">{t.allEmployees}</option>
                         {employees.map(emp => (
                           <option key={emp.id} value={emp.id}>{emp.name}</option>
                         ))}
@@ -492,23 +498,23 @@ export default function AdminDashboard() {
                       className="w-full h-[38px] flex items-center justify-center gap-2 bg-emerald-600 text-white rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-emerald-700 transition-colors disabled:opacity-50"
                     >
                       <FileSpreadsheet className="w-4 h-4" />
-                      Export
+                      {t.export}
                     </button>
                   </div>
                 </div>
               </div>
 
-              <div className="card p-6 bg-surface-container overflow-hidden">
+              <div className="card p-6 bg-surface-container overflow-hidden bg-pattern-wavy">
                 <div className="space-y-6 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
                   {attendance.length === 0 ? (
                     <div className="text-center py-12">
-                      <p className="text-xs font-bold uppercase tracking-widest text-on-surface-variant opacity-40">No activity yet</p>
+                      <p className="text-xs font-bold uppercase tracking-widest text-on-surface-variant opacity-40">{t.noActivity}</p>
                     </div>
                   ) : (
                     attendance.map((log) => (
-                      <div key={log.id} className="relative pl-6 pb-6 border-l-2 border-outline-variant last:pb-0">
+                      <div key={log.id} className="relative pl-6 pb-6 border-l-2 border-outline-variant last:pb-0 rtl:pl-0 rtl:pr-6 rtl:border-l-0 rtl:border-r-2">
                         <div className={cn(
-                          "absolute -left-[9px] top-0 w-4 h-4 rounded-full border-4 border-surface shadow-sm transition-transform group-hover:scale-125",
+                          "absolute -left-[9px] rtl:-right-[9px] top-0 w-4 h-4 rounded-full border-4 border-surface shadow-sm transition-transform group-hover:scale-125",
                           log.status === 'In' ? "bg-secondary" : "bg-red-500"
                         )} />
                         
@@ -518,7 +524,7 @@ export default function AdminDashboard() {
                               "text-[10px] font-bold uppercase tracking-widest",
                               log.status === 'In' ? "text-secondary" : "text-red-500"
                             )}>
-                              {log.status === 'In' ? 'Checked In' : 'Checked Out'}
+                              {log.status === 'In' ? (lang === "ar" ? "تم تسجيل الحضور" : "Checked In") : (lang === "ar" ? "تم تسجيل الانصراف" : "Checked Out")}
                             </span>
                             <span className="text-[10px] font-mono text-on-surface-variant opacity-60">
                               {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -555,23 +561,23 @@ export default function AdminDashboard() {
                 <div className="bg-red-500/10 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6">
                   <Trash2 className="w-8 h-8 text-red-500" />
                 </div>
-                <h3 className="text-xl font-bold text-on-surface text-center mb-2">Delete Account?</h3>
+                <h3 className="text-xl font-bold text-on-surface text-center mb-2">{t.deleteAccount}</h3>
                 <p className="text-sm text-on-surface-variant text-center mb-8 opacity-70">
-                  Are you sure you want to delete <span className="font-bold text-on-surface">{employees.find(e => e.id === confirmingDeleteId)?.name}</span>? This action cannot be undone.
+                  {t.areYouSureDelete}
                 </p>
                 <div className="grid grid-cols-2 gap-4">
                   <button 
                     onClick={() => setConfirmingDeleteId(null)}
                     className="btn border border-outline-variant hover:bg-surface-container-high transition-colors"
                   >
-                    Cancel
+                    {t.cancel}
                   </button>
                   <button 
                     onClick={performDelete}
                     disabled={loading}
                     className="btn bg-red-500 text-white hover:bg-red-600 transition-colors disabled:opacity-50"
                   >
-                    {loading ? 'Deleting...' : 'Delete'}
+                    {loading ? (lang === "ar" ? "جاري الحذف..." : "Deleting...") : t.delete}
                   </button>
                 </div>
               </div>
@@ -584,7 +590,7 @@ export default function AdminDashboard() {
               <div className="card w-full max-w-md p-8 bg-surface-container shadow-2xl">
                 <div className="flex justify-between items-center mb-6">
                   <h3 className="text-xl font-bold text-on-surface">
-                    {editingId ? 'Edit Employee' : 'New Employee'}
+                    {editingId ? t.editEmployee : t.newEmployee}
                   </h3>
                   <button onClick={() => { setShowModal(false); setEditingId(null); }} className="text-on-surface-variant hover:text-on-surface">
                     <X className="w-6 h-6" />
@@ -592,7 +598,7 @@ export default function AdminDashboard() {
                 </div>
                 <form onSubmit={handleAddEmployee} className="space-y-4">
                   <div>
-                    <label className="input-label">Username</label>
+                    <label className="input-label">{t.username}</label>
                     <input 
                       type="text" 
                       className="input-field" 
@@ -602,7 +608,7 @@ export default function AdminDashboard() {
                     />
                   </div>
                   <div>
-                    <label className="input-label">Password {editingId && <span className="text-[10px] text-on-surface-variant opacity-60">(Leave blank to keep current)</span>}</label>
+                    <label className="input-label">{t.password} {editingId && <span className="text-[10px] text-on-surface-variant opacity-60">({lang === "ar" ? "اتركه فارغاً للاحتفاظ بالحالي" : "Leave blank to keep current"})</span>}</label>
                     <input 
                       type="password" 
                       className="input-field" 
@@ -612,19 +618,19 @@ export default function AdminDashboard() {
                     />
                   </div>
                   <div>
-                    <label className="input-label">Role</label>
+                    <label className="input-label">{t.role}</label>
                     <select 
-                      className="input-field appearance-none bg-no-repeat bg-right pr-10" 
+                      className="input-field appearance-none bg-no-repeat bg-right pr-10 rtl:bg-left rtl:pl-10 rtl:pr-4" 
                       value={newEmployee.role}
                       onChange={(e) => setNewEmployee({ ...newEmployee, role: e.target.value })}
                       style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='currentColor'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundSize: '1.5em' }}
                     >
-                      <option value="user">Normal User</option>
-                      <option value="admin">System Admin</option>
+                      <option value="user">{lang === "ar" ? "مستخدم عادي" : "Normal User"}</option>
+                      <option value="admin">{lang === "ar" ? "مسؤول النظام" : "System Admin"}</option>
                     </select>
                   </div>
                   <div>
-                    <label className="input-label">Display Name</label>
+                    <label className="input-label">{t.displayName}</label>
                     <input 
                       type="text" 
                       className="input-field" 
@@ -634,21 +640,21 @@ export default function AdminDashboard() {
                     />
                   </div>
                   <div>
-                    <label className="input-label">Department</label>
+                    <label className="input-label">{t.department}</label>
                     <select 
-                      className="input-field appearance-none bg-no-repeat bg-right pr-10" 
+                      className="input-field appearance-none bg-no-repeat bg-right pr-10 rtl:bg-left rtl:pl-10 rtl:pr-4" 
                       value={newEmployee.department}
                       onChange={(e) => setNewEmployee({ ...newEmployee, department: e.target.value })}
                       style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='currentColor'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundSize: '1.5em' }}
                     >
-                      <option>Operations</option>
-                      <option>Logistics</option>
-                      <option>Human Resources</option>
-                      <option>Security</option>
+                      <option>{lang === "ar" ? "العمليات" : "Operations"}</option>
+                      <option>{lang === "ar" ? "الخدمات اللوجستية" : "Logistics"}</option>
+                      <option>{lang === "ar" ? "الموارد البشرية" : "Human Resources"}</option>
+                      <option>{lang === "ar" ? "الأمن" : "Security"}</option>
                     </select>
                   </div>
                   <button type="submit" className="btn-secondary w-full mt-4">
-                    {editingId ? 'Update Identity' : 'Create Identity'}
+                    {editingId ? t.updateIdentity : t.createIdentity}
                   </button>
                 </form>
               </div>
