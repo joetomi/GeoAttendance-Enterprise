@@ -103,7 +103,7 @@ export default function MobileCheckIn() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F1F3F9] p-6 pb-24 flex flex-col items-center">
+    <div className="min-h-screen bg-surface p-6 pb-24 flex flex-col items-center text-on-surface">
       <div className="w-full flex justify-between items-center mb-10">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
@@ -113,7 +113,7 @@ export default function MobileCheckIn() {
         </div>
         <button 
           onClick={handleLogout}
-          className="w-10 h-10 rounded-full bg-white shadow-sm border border-outline-variant flex items-center justify-center hover:bg-surface-container transition-colors"
+          className="w-10 h-10 rounded-full bg-surface-container shadow-sm border border-outline-variant flex items-center justify-center hover:bg-surface-container-high transition-colors"
         >
           <LogOut className="w-5 h-5 text-on-surface-variant" />
         </button>
@@ -128,7 +128,7 @@ export default function MobileCheckIn() {
         <p className="text-on-surface-variant font-medium mt-1">Enterprise HQ • {user?.role === 'admin' ? 'Administrator' : 'Personnel'}</p>
       </motion.div>
 
-      <div className="w-full mt-10 p-6 bg-white rounded-3xl shadow-xl shadow-black/5 flex items-center justify-between">
+      <div className="w-full mt-10 p-6 bg-surface-container rounded-3xl shadow-xl shadow-black/10 flex items-center justify-between">
         <div>
           <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant opacity-60">Session Status</p>
           <div className="flex items-center gap-2 mt-1">
@@ -202,7 +202,7 @@ export default function MobileCheckIn() {
             >
               <div className={cn(
                 "w-48 h-48 rounded-full flex items-center justify-center mb-8 shadow-xl",
-                currentMode === 'In' ? "bg-secondary-container shadow-secondary/10" : "bg-red-100 shadow-red-200"
+                currentMode === 'In' ? "bg-secondary-container shadow-secondary/10" : "bg-red-900/40 shadow-red-900/20"
               )}>
                 <CheckCircle2 className={cn("w-24 h-24", currentMode === 'In' ? "text-secondary" : "text-red-500")} />
               </div>
@@ -251,7 +251,7 @@ export default function MobileCheckIn() {
         </p>
       </div>
 
-      <div className="w-full bg-white rounded-3xl p-4 flex items-center gap-4 mb-2 shadow-sm border border-outline-variant">
+      <div className="w-full bg-surface-container rounded-3xl p-4 flex items-center gap-4 mb-2 shadow-sm border border-outline-variant">
         <div className="w-12 h-12 bg-surface-container rounded-2xl flex items-center justify-center overflow-hidden">
           <img 
             src="https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?q=80&w=200&auto=format&fit=crop" 

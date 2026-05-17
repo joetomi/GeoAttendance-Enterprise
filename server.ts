@@ -91,8 +91,8 @@ async function getPool() {
         EXEC('
           IF NOT EXISTS (SELECT 1 FROM Employees WHERE role = ''admin'')
           BEGIN
-            INSERT INTO Employees (id, name, username, password, role, status) 
-            VALUES (''admin_1'', ''System Admin'', ''admin'', ''admin123'', ''admin'', ''Active'');
+            INSERT INTO Employees (id, name, username, password, role, status, department, avatar) 
+            VALUES (''admin_1'', ''System Admin'', ''admin'', ''admin123'', ''admin'', ''Active'', ''Security'', ''https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=100&h=100&auto=format&fit=crop'');
           END
         ');
       `);
@@ -198,8 +198,19 @@ async function startServer() {
   app.delete("/api/employees/:id", async (req, res) => {
     const db = await getPool();
     if (!db) return res.status(503).json({ error: "Database not connected" });
-    await db.request().input("id", sql.NVarChar, req.params.id).query("DELETE FROM Employees WHERE id = @id");
-    res.status(204).end();
+    
+    try {
+      // Delete associated logs first to avoid any potential constraints
+      await db.request().input("id", sql.NVarChar, req.params.id).query("DELETE FROM AttendanceLogs WHERE employeeId = @id");
+      
+      // Delete the employee
+      await db.request().input("id", sql.NVarChar, req.params.id).query("DELETE FROM Employees WHERE id = @id");
+      
+      res.status(204).end();
+    } catch (err) {
+      console.error("Delete failed:", err);
+      res.status(500).json({ error: "Failed to delete" });
+    }
   });
 
   app.get("/api/geofence", async (req, res) => {
@@ -236,16 +247,71 @@ async function startServer() {
     }
   });
 
+  app.get("/api/attendance/report", async (req, res) => {
+    const db = await getPool();
+    if (!db) return res.json([]);
+    const result = await db.request().query(`
+      SELECT l.*, e.name as employeeName, e.department, e.username
+      FROM AttendanceLogs l
+      LEFT JOIN Employees e ON l.employeeId = e.id
+      ORDER BY l.timestamp ASC
+    `);
+    res.json(result.recordset);
+  });
+
   app.get("/api/attendance", async (req, res) => {
     const db = await getPool();
     if (!db) return res.json([]);
     const result = await db.request().query(`
-      SELECT TOP 50 l.*, e.name as employeeName, e.department, e.avatar
+      SELECT TOP 50 l.*, e.name as employeeName, e.department, e.avatar, e.username, e.role
       FROM AttendanceLogs l
       LEFT JOIN Employees e ON l.employeeId = e.id
       ORDER BY l.timestamp DESC
     `);
     res.json(result.recordset);
+  });
+
+  app.get("/api/employees/online", async (req, res) => {
+    const db = await getPool();
+    if (!db) return res.json([]);
+    
+    try {
+      const result = await db.request().query(`
+        WITH LatestLogs AS (
+          SELECT employeeId, status, timestamp,
+          ROW_NUMBER() OVER (PARTITION BY employeeId ORDER BY timestamp DESC) as rn
+          FROM AttendanceLogs
+        )
+        SELECT e.id, e.name, e.department, e.avatar, e.username
+        FROM Employees e
+        JOIN LatestLogs l ON e.id = l.employeeId
+        WHERE l.rn = 1 AND l.status = 'In'
+      `);
+      res.json(result.recordset);
+    } catch (err) {
+      res.status(500).json({ error: "Failed to fetch online users" });
+    }
+  });
+
+  app.get("/api/stats", async (req, res) => {
+    const db = await getPool();
+    if (!db) return res.json({ totalEmployees: 0, activeToday: 0, onlineNow: 0, totalLogs: 0 });
+
+    try {
+      const stats = await db.request().query(`
+        SELECT 
+          (SELECT COUNT(*) FROM Employees) as totalEmployees,
+          (SELECT COUNT(DISTINCT employeeId) FROM AttendanceLogs WHERE CAST(timestamp AS DATE) = CAST(GETDATE() AS DATE)) as activeToday,
+          (SELECT COUNT(*) FROM (
+            SELECT employeeId, status, ROW_NUMBER() OVER (PARTITION BY employeeId ORDER BY timestamp DESC) as rn
+            FROM AttendanceLogs
+          ) l WHERE rn = 1 AND status = 'In') as onlineNow,
+          (SELECT COUNT(*) FROM AttendanceLogs) as totalLogs
+      `);
+      res.json(stats.recordset[0]);
+    } catch (err) {
+      res.status(500).json({ error: "Failed to fetch stats" });
+    }
   });
 
   app.get("/api/attendance/status/:employeeId", async (req, res) => {

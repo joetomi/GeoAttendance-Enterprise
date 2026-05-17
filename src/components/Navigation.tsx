@@ -50,8 +50,8 @@ export function Sidebar({ className }: SidebarProps) {
               className={cn(
                 "flex items-center gap-3 px-6 py-4 transition-all duration-200 border-l-4",
                 isActive 
-                  ? "border-secondary-container bg-white/10 text-secondary-container" 
-                  : "border-transparent text-white/60 hover:bg-white/5 hover:text-white"
+                  ? "border-primary bg-white/10 text-white" 
+                  : "border-transparent text-white/50 hover:bg-white/5 hover:text-white"
               )}
             >
               <item.icon className="w-5 h-5" />
@@ -87,12 +87,12 @@ export function Sidebar({ className }: SidebarProps) {
 
 export function Header({ title }: { title: string }) {
   return (
-    <header className="flex justify-between items-center w-full px-8 py-4 lg:pl-[312px] bg-white shadow-sm z-30 border-b border-outline-variant transition-all">
+    <header className="flex justify-between items-center w-full px-8 py-4 lg:pl-[312px] bg-surface-container z-30 border-b border-outline-variant transition-all">
       <div className="flex items-center gap-4">
         <button className="lg:hidden p-2 text-primary">
           <Menu className="w-6 h-6" />
         </button>
-        <h2 className="text-lg font-bold text-primary">{title}</h2>
+        <h2 className="text-lg font-bold text-white tracking-tight">{title}</h2>
       </div>
 
       <div className="flex items-center gap-6">

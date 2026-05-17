@@ -113,13 +113,6 @@ export default function Login() {
           </div>
 
           <footer className="mt-12 flex flex-col items-center gap-4">
-            <div className="flex gap-6 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">
-              <a href="#" className="hover:text-primary transition-colors">Privacy</a>
-              <span className="opacity-30">•</span>
-              <a href="#" className="hover:text-primary transition-colors">Terms</a>
-              <span className="opacity-30">•</span>
-              <a href="#" className="hover:text-primary transition-colors">Support</a>
-            </div>
             <p className="text-[10px] font-medium text-outline">© 2024 GeoAttendance Solutions Inc.</p>
           </footer>
         </motion.div>

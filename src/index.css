@@ -5,26 +5,26 @@
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 
-  /* Precision Enterprise Colors */
-  --color-primary: #000666;
-  --color-primary-container: #1a237e;
-  --color-on-primary-container: #8690ee;
+  /* Forest Enterprise Colors */
+  --color-primary: #10b981;
+  --color-primary-container: #064e3b;
+  --color-on-primary-container: #ecfdf5;
   
-  --color-secondary: #006b5f;
-  --color-secondary-container: #8df5e4;
-  --color-on-secondary-container: #007165;
+  --color-secondary: #059669;
+  --color-secondary-container: #065f46;
+  --color-on-secondary-container: #ecfdf5;
   
-  --color-surface: #f8f9fa;
-  --color-surface-container: #edeeef;
-  --color-surface-container-high: #e7e8e9;
-  --color-on-surface: #191c1d;
-  --color-on-surface-variant: #454652;
+  --color-surface: #09090b;
+  --color-surface-container: #18181b;
+  --color-surface-container-high: #27272a;
+  --color-on-surface: #f4f4f5;
+  --color-on-surface-variant: #a1a1aa;
   
-  --color-outline: #767683;
-  --color-outline-variant: #c6c5d4;
+  --color-outline: #3f3f46;
+  --color-outline-variant: #27272a;
   
-  --color-error: #ba1a1a;
-  --color-error-container: #ffdad6;
+  --color-error: #ef4444;
+  --color-error-container: #450a0a;
 }
 
 @layer base {
@@ -35,7 +35,7 @@
 
 @layer components {
   .card {
-    @apply bg-white border border-outline-variant rounded-xl shadow-sm overflow-hidden;
+    @apply bg-surface-container border border-outline-variant rounded-xl shadow-sm overflow-hidden;
   }
   
   .input-label {

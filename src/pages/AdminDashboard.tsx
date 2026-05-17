@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { Plus, Trash2, MoreVertical, ShieldCheck, UserMinus, Users, ChevronLeft, ChevronRight, X, Edit3 } from "lucide-react";
+import { Plus, Trash2, MoreVertical, ShieldCheck, UserMinus, Users, ChevronLeft, ChevronRight, X, Edit3, Download, FileSpreadsheet } from "lucide-react";
+import * as XLSX from "xlsx";
 import { Employee } from "../types";
 import { cn } from "@/src/lib/utils";
 import { Header } from "../components/Navigation";
@@ -7,8 +8,12 @@ import { Header } from "../components/Navigation";
 export default function AdminDashboard() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [attendance, setAttendance] = useState<any[]>([]);
+  const [onlineUsers, setOnlineUsers] = useState<Employee[]>([]);
+  const [stats, setStats] = useState({ totalEmployees: 0, activeToday: 0, onlineNow: 0, totalLogs: 0 });
   const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [newEmployee, setNewEmployee] = useState({ 
     username: "", 
@@ -21,9 +26,11 @@ export default function AdminDashboard() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [empRes, attRes] = await Promise.all([
+        const [empRes, attRes, onlineRes, statsRes] = await Promise.all([
           fetch("/api/employees").catch(() => null),
-          fetch("/api/attendance").catch(() => null)
+          fetch("/api/attendance").catch(() => null),
+          fetch("/api/employees/online").catch(() => null),
+          fetch("/api/stats").catch(() => null)
         ]);
 
         if (empRes && empRes.ok) {
@@ -35,10 +42,21 @@ export default function AdminDashboard() {
           const data = await attRes.json();
           setAttendance(Array.isArray(data) ? data : []);
         }
+
+        if (onlineRes && onlineRes.ok) {
+          const data = await onlineRes.json();
+          setOnlineUsers(Array.isArray(data) ? data : []);
+        }
+
+        if (statsRes && statsRes.ok) {
+          const data = await statsRes.json();
+          setStats(data);
+        }
       } catch (err) {
         console.error("Dashboard data fetch failed:", err);
       } finally {
         setLoading(false);
+        setInitialLoading(false);
       }
     };
     fetchData();
@@ -97,11 +115,119 @@ export default function AdminDashboard() {
   };
 
   const deleteEmployee = (id: string) => {
-    if (window.confirm("Are you sure you want to remove this employee?")) {
-      fetch(`/api/employees/${id}`, { method: "DELETE" })
-        .then(() => setEmployees(employees.filter(e => e.id !== id)));
+    const currentUserStr = localStorage.getItem("user");
+    if (currentUserStr) {
+      const currentUser = JSON.parse(currentUserStr);
+      if (currentUser.id === id) {
+        alert("You cannot delete your own account for security reasons.");
+        return;
+      }
+    }
+    setConfirmingDeleteId(id);
+  };
+
+  const performDelete = async () => {
+    if (!confirmingDeleteId) return;
+    
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/employees/${confirmingDeleteId}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Delete failed on server");
+      
+      const id = confirmingDeleteId;
+      setEmployees(prev => prev.filter(e => e.id !== id));
+      setOnlineUsers(prev => prev.filter(e => e.id !== id));
+      
+      // If admin deletes themselves, log them out
+      const currentUserStr = localStorage.getItem("user");
+      if (currentUserStr) {
+        const currentUser = JSON.parse(currentUserStr);
+        if (currentUser.id === id) {
+          localStorage.removeItem("user");
+          window.location.href = "/";
+          return;
+        }
+      }
+      
+      // Refresh stats
+      const statsRes = await fetch("/api/stats");
+      if (statsRes.ok) {
+        const data = await statsRes.json();
+        setStats(data);
+      }
+      setConfirmingDeleteId(null);
+    } catch (err) {
+      console.error("Delete failed:", err);
+      alert("Failed to delete employee. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
+  
+  const exportToExcel = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch("/api/attendance/report");
+      if (!res.ok) throw new Error("Failed to fetch report data");
+      const logs = await res.json();
+      
+      // Process logs into rows: { Name, Date, Check In, Check Out }
+      // We group by employee and date
+      const reportMap: Record<string, any> = {};
+      
+      logs.forEach((log: any) => {
+        const dateObj = new Date(log.timestamp);
+        const dateKey = dateObj.toLocaleDateString();
+        const empKey = log.employeeId;
+        const groupKey = `${empKey}_${dateKey}`;
+        
+        if (!reportMap[groupKey]) {
+          reportMap[groupKey] = {
+            "Employee Name": log.employeeName || "Unknown",
+            "Department": log.department || "N/A",
+            "Date": dateKey,
+            "Check In": null,
+            "Check Out": null,
+            _inTime: Infinity,
+            _outTime: -Infinity
+          };
+        }
+        
+        const timeMs = dateObj.getTime();
+        const timeStr = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        
+        if (log.status === "In") {
+          if (timeMs < reportMap[groupKey]._inTime) {
+            reportMap[groupKey]._inTime = timeMs;
+            reportMap[groupKey]["Check In"] = timeStr;
+          }
+        } else if (log.status === "Out") {
+          if (timeMs > reportMap[groupKey]._outTime) {
+            reportMap[groupKey]._outTime = timeMs;
+            reportMap[groupKey]["Check Out"] = timeStr;
+          }
+        }
+      });
+      
+      const finalData = Object.values(reportMap).map(({ _inTime, _outTime, ...rest }) => rest);
+      
+      const ws = XLSX.utils.json_to_sheet(finalData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Attendance Report");
+      
+      // Generate filename with date
+      const fileName = `Attendance_Report_${new Date().toISOString().split('T')[0]}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+      
+    } catch (err) {
+      console.error("Export failed:", err);
+      alert("Failed to generate Excel report.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
 
   return (
     <div className="min-h-screen bg-surface">
@@ -110,11 +236,12 @@ export default function AdminDashboard() {
       <main className="lg:pl-[312px] p-8 pb-32">
         <div className="max-w-7xl mx-auto">
           {/* Stats Bar */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             {[
-              { label: "Total Employees", value: employees.length, color: "bg-primary-container" },
-              { label: "Active Today", value: employees.filter(e => e.status === 'Active').length, color: "bg-secondary" },
-              { label: "Total Logs", value: attendance.length, color: "bg-primary" }
+              { label: "Total Accounts", value: stats.totalEmployees, color: "bg-primary-container", icon: <Users className="w-6 h-6" /> },
+              { label: "Active Today", value: stats.activeToday, color: "bg-secondary", icon: <ShieldCheck className="w-6 h-6" /> },
+              { label: "Online Now", value: stats.onlineNow, color: "bg-emerald-500", icon: <div className="w-3 h-3 bg-white rounded-full animate-pulse" /> },
+              { label: "Archived Logs", value: stats.totalLogs, color: "bg-primary", icon: <ShieldCheck className="w-6 h-6" /> }
             ].map((stat, i) => (
               <div key={i} className="card p-6 flex items-center justify-between">
                 <div>
@@ -122,10 +249,36 @@ export default function AdminDashboard() {
                   <p className="text-3xl font-bold text-on-surface mt-1">{stat.value}</p>
                 </div>
                 <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center text-white", stat.color)}>
-                  {i === 0 ? <Users className="w-6 h-6" /> : i === 1 ? <ShieldCheck className="w-6 h-6" /> : <ShieldCheck className="w-6 h-6" />}
+                  {stat.icon}
                 </div>
               </div>
             ))}
+          </div>
+
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 mb-8">
+            <div className="xl:col-span-12">
+              <div className="card p-6 bg-surface-container">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <h4 className="text-xs font-bold uppercase tracking-[0.2em] text-on-surface">Personnel Live Status</h4>
+                </div>
+                <div className="flex flex-wrap gap-4">
+                  {onlineUsers.length === 0 ? (
+                    <p className="text-xs text-on-surface-variant opacity-60 italic">No personnel currently on-site.</p>
+                  ) : (
+                    onlineUsers.map(user => (
+                      <div key={user.id} className="flex items-center gap-3 bg-surface p-2 pr-4 rounded-2xl border border-outline-variant transition-transform hover:scale-105">
+                        <img src={user.avatar} className="w-8 h-8 rounded-full border border-secondary/30" alt="" />
+                        <div>
+                          <p className="text-xs font-bold text-on-surface leading-tight">{user.name}</p>
+                          <p className="text-[10px] text-emerald-500 font-bold uppercase tracking-tighter">Live Now</p>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
@@ -153,9 +306,9 @@ export default function AdminDashboard() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-outline-variant">
-                      {loading ? (
+                      {initialLoading ? (
                         <tr>
-                          <td colSpan={3} className="px-6 py-12 text-center text-on-surface-variant italic">Loading metadata...</td>
+                          <td colSpan={3} className="px-6 py-12 text-center text-on-surface-variant italic text-sm">Synchronizing ledger...</td>
                         </tr>
                       ) : employees.length === 0 ? (
                         <tr>
@@ -172,7 +325,15 @@ export default function AdminDashboard() {
                                   className="w-10 h-10 rounded-full object-cover border border-outline-variant"
                                 />
                                 <div>
-                                  <p className="text-sm font-bold text-on-surface">{employee.name}</p>
+                                  <div className="flex items-center gap-2">
+                                    <p className="text-sm font-bold text-on-surface">{employee.name}</p>
+                                    <span className={cn(
+                                      "text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider",
+                                      employee.role === 'admin' ? "bg-primary/20 text-primary" : "bg-secondary/20 text-secondary"
+                                    )}>
+                                      {employee.role}
+                                    </span>
+                                  </div>
                                   <p className="text-[10px] text-on-surface-variant uppercase tracking-tighter opacity-70">{employee.username}</p>
                                 </div>
                               </div>
@@ -183,19 +344,23 @@ export default function AdminDashboard() {
                             <td className="px-6 py-4">
                               <div className="flex items-center justify-end gap-2">
                                 <button 
+                                  type="button"
                                   onClick={() => handleEditClick(employee)}
-                                  className="p-2 text-secondary hover:bg-secondary-container transition-colors rounded-full"
+                                  className="p-2 text-secondary hover:bg-secondary-container transition-colors rounded-full flex items-center justify-center"
                                   title="Edit Employee"
                                 >
-                                  <Edit3 className="w-4 h-4" />
+                                  <Edit3 className="w-4 h-4 pointer-events-none" />
                                 </button>
-                                <button 
-                                  onClick={() => deleteEmployee(employee.id)}
-                                  className="p-2 text-error hover:bg-error-container transition-colors rounded-full"
-                                  title="Remove Employee"
-                                >
-                                  <Trash2 className="w-5 h-5" />
-                                </button>
+                                {employee.id !== currentUser.id && (
+                                  <button 
+                                    type="button"
+                                    onClick={() => deleteEmployee(employee.id)}
+                                    className="p-2 text-red-500 hover:bg-red-500/10 transition-colors rounded-full group/del flex items-center justify-center"
+                                    title={`Remove ${employee.name}`}
+                                  >
+                                    <Trash2 className="w-5 h-5 pointer-events-none transition-transform group-active/del:scale-75" />
+                                  </button>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -209,12 +374,22 @@ export default function AdminDashboard() {
 
             {/* Right Column: Attendance Logs */}
             <div className="xl:col-span-1">
-              <div className="mb-8">
-                <h3 className="text-2xl font-bold text-on-surface tracking-tight">Activity Logs</h3>
-                <p className="text-sm text-on-surface-variant">Real-time attendance streams.</p>
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+                <div>
+                  <h3 className="text-2xl font-bold text-on-surface tracking-tight">Activity Logs</h3>
+                  <p className="text-sm text-on-surface-variant">Real-time attendance streams.</p>
+                </div>
+                <button 
+                  onClick={exportToExcel} 
+                  disabled={loading}
+                  className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-emerald-700 transition-colors disabled:opacity-50"
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  Excel Export
+                </button>
               </div>
 
-              <div className="card p-6 bg-white overflow-hidden">
+              <div className="card p-6 bg-surface-container overflow-hidden">
                 <div className="space-y-6 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
                   {attendance.length === 0 ? (
                     <div className="text-center py-12">
@@ -224,7 +399,7 @@ export default function AdminDashboard() {
                     attendance.map((log) => (
                       <div key={log.id} className="relative pl-6 pb-6 border-l-2 border-outline-variant last:pb-0">
                         <div className={cn(
-                          "absolute -left-[9px] top-0 w-4 h-4 rounded-full border-4 border-white shadow-sm transition-transform group-hover:scale-125",
+                          "absolute -left-[9px] top-0 w-4 h-4 rounded-full border-4 border-surface shadow-sm transition-transform group-hover:scale-125",
                           log.status === 'In' ? "bg-secondary" : "bg-red-500"
                         )} />
                         
@@ -246,7 +421,12 @@ export default function AdminDashboard() {
                               <img src={log.avatar} className="w-6 h-6 rounded-full border border-outline-variant" alt="" />
                             )}
                             <div>
-                              <p className="text-sm font-bold text-on-surface">{log.employeeName || 'Unknown Employee'}</p>
+                              <div className="flex items-center gap-1.5">
+                                <p className="text-sm font-bold text-on-surface">{log.employeeName || 'Unknown Employee'}</p>
+                                {log.role === 'admin' && (
+                                  <span className="text-[9px] bg-primary/20 text-primary px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Admin</span>
+                                )}
+                              </div>
                               <p className="text-[10px] text-on-surface-variant opacity-60">{log.department}</p>
                             </div>
                           </div>
@@ -259,10 +439,40 @@ export default function AdminDashboard() {
             </div>
           </div>
 
+          {/* Delete Confirmation Modal */}
+          {confirmingDeleteId && (
+            <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+              <div className="card w-full max-w-sm p-8 bg-surface-container shadow-2xl border border-red-500/20">
+                <div className="bg-red-500/10 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                  <Trash2 className="w-8 h-8 text-red-500" />
+                </div>
+                <h3 className="text-xl font-bold text-on-surface text-center mb-2">Delete Account?</h3>
+                <p className="text-sm text-on-surface-variant text-center mb-8 opacity-70">
+                  Are you sure you want to delete <span className="font-bold text-on-surface">{employees.find(e => e.id === confirmingDeleteId)?.name}</span>? This action cannot be undone.
+                </p>
+                <div className="grid grid-cols-2 gap-4">
+                  <button 
+                    onClick={() => setConfirmingDeleteId(null)}
+                    className="btn border border-outline-variant hover:bg-surface-container-high transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={performDelete}
+                    disabled={loading}
+                    className="btn bg-red-500 text-white hover:bg-red-600 transition-colors disabled:opacity-50"
+                  >
+                    {loading ? 'Deleting...' : 'Delete'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Add Employee Modal */}
           {showModal && (
             <div id="add-employee-modal" className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
-              <div className="card w-full max-w-md p-8 bg-white shadow-2xl">
+              <div className="card w-full max-w-md p-8 bg-surface-container shadow-2xl">
                 <div className="flex justify-between items-center mb-6">
                   <h3 className="text-xl font-bold text-on-surface">
                     {editingId ? 'Edit Employee' : 'New Employee'}

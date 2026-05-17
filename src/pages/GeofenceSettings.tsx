@@ -188,7 +188,7 @@ export default function GeofenceSettings() {
                 geofence={geofence} 
                 onUpdate={(lat, lng) => setGeofence({ ...geofence, latitude: lat, longitude: lng })}
               />
-              <div className="mt-4 flex items-center gap-4 text-xs text-on-surface-variant bg-white p-4 rounded-xl border border-outline-variant">
+              <div className="mt-4 flex items-center gap-4 text-xs text-on-surface-variant bg-surface-container p-4 rounded-xl border border-outline-variant">
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full bg-secondary" />
                   <span>Click anywhere on the map to reposition the fence center.</span>
@@ -202,7 +202,7 @@ export default function GeofenceSettings() {
             <p className="text-sm text-on-surface-variant">Manage your administrative credentials.</p>
           </div>
 
-          <div className="card p-8 max-w-2xl bg-white">
+          <div className="card p-8 max-w-2xl bg-surface-container">
             <form onSubmit={handleChangePassword} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
                 <div className="space-y-6">
