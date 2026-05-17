@@ -1,0 +1,55 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* Precision Enterprise Colors */
+  --color-primary: #000666;
+  --color-primary-container: #1a237e;
+  --color-on-primary-container: #8690ee;
+  
+  --color-secondary: #006b5f;
+  --color-secondary-container: #8df5e4;
+  --color-on-secondary-container: #007165;
+  
+  --color-surface: #f8f9fa;
+  --color-surface-container: #edeeef;
+  --color-surface-container-high: #e7e8e9;
+  --color-on-surface: #191c1d;
+  --color-on-surface-variant: #454652;
+  
+  --color-outline: #767683;
+  --color-outline-variant: #c6c5d4;
+  
+  --color-error: #ba1a1a;
+  --color-error-container: #ffdad6;
+}
+
+@layer base {
+  body {
+    @apply bg-surface text-on-surface font-sans;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-white border border-outline-variant rounded-xl shadow-sm overflow-hidden;
+  }
+  
+  .input-label {
+    @apply text-xs font-medium uppercase tracking-wider text-on-surface-variant mb-1 block;
+  }
+  
+  .input-field {
+    @apply w-full px-4 py-3 rounded-lg border border-outline focus:border-secondary focus:ring-2 focus:ring-secondary/20 transition-all outline-none text-base;
+  }
+  
+  .btn-primary {
+    @apply bg-primary-container text-white px-6 py-3 rounded-lg font-medium flex items-center justify-center gap-2 hover:opacity-90 active:scale-95 transition-all shadow-sm;
+  }
+  
+  .btn-secondary {
+    @apply bg-secondary text-white px-6 py-3 rounded-lg font-medium flex items-center justify-center gap-2 hover:opacity-90 active:scale-95 transition-all shadow-sm;
+  }
+}
