@@ -9,7 +9,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Search,
-  Bell
+  Bell,
+  Wallet
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/src/lib/utils";
@@ -31,6 +32,7 @@ export function Sidebar({ className }: SidebarProps) {
     { icon: Users, label: "Manage Employees", path: "/admin" },
     { icon: MapPin, label: "Geofence Settings", path: "/geofence" },
     { icon: Settings, label: "Settings", path: "/settings" },
+    { icon: Wallet, label: "Deductions & Payroll", path: "/payroll" },
   ];
 
   return (

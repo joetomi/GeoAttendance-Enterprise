@@ -288,6 +288,92 @@ async function startServer() {
     }
   });
 
+  // --- Payroll & Deductions ---
+  app.get("/api/payroll/config/:employeeId", async (req, res) => {
+    const db = await getPool();
+    if (!db) return res.status(500).json({ error: "DB connection failed" });
+    const { employeeId } = req.params;
+    try {
+      const result = await db.request()
+        .input("employeeId", sql.NVarChar, employeeId)
+        .query("SELECT * FROM PayrollConfigs WHERE employeeId = @employeeId");
+      
+      if (result.recordset.length === 0) {
+        // Return defaults if not set
+        return res.json({
+          employeeId,
+          baseSalary: 0,
+          gracePeriodMinutes: 15,
+          halfDayThresholdMinutes: 30,
+          fullDayThresholdMinutes: 60,
+          weekends: "5,6", // Fri, Sat (example for Middle East) or 0,6 for West
+          holidays: "[]"
+        });
+      }
+      res.json(result.recordset[0]);
+    } catch (err) {
+      res.status(500).json({ error: "Failed to fetch payroll config" });
+    }
+  });
+
+  app.post("/api/payroll/config", async (req, res) => {
+    const db = await getPool();
+    if (!db) return res.status(500).json({ error: "DB connection failed" });
+    const { employeeId, baseSalary, gracePeriodMinutes, halfDayThresholdMinutes, fullDayThresholdMinutes, weekends, holidays } = req.body;
+    
+    try {
+      await db.request()
+        .input("employeeId", sql.NVarChar, employeeId)
+        .input("baseSalary", sql.Decimal(18, 2), baseSalary)
+        .input("gracePeriodMinutes", sql.Int, gracePeriodMinutes)
+        .input("halfDayThresholdMinutes", sql.Int, halfDayThresholdMinutes)
+        .input("fullDayThresholdMinutes", sql.Int, fullDayThresholdMinutes)
+        .input("weekends", sql.NVarChar, weekends)
+        .input("holidays", sql.NVarChar, holidays)
+        .query(`
+          IF EXISTS (SELECT 1 FROM PayrollConfigs WHERE employeeId = @employeeId)
+          BEGIN
+            UPDATE PayrollConfigs SET 
+              baseSalary = @baseSalary,
+              gracePeriodMinutes = @gracePeriodMinutes,
+              halfDayThresholdMinutes = @halfDayThresholdMinutes,
+              fullDayThresholdMinutes = @fullDayThresholdMinutes,
+              weekends = @weekends,
+              holidays = @holidays
+            WHERE employeeId = @employeeId
+          END
+          ELSE
+          BEGIN
+            INSERT INTO PayrollConfigs (employeeId, baseSalary, gracePeriodMinutes, halfDayThresholdMinutes, fullDayThresholdMinutes, weekends, holidays)
+            VALUES (@employeeId, @baseSalary, @gracePeriodMinutes, @halfDayThresholdMinutes, @fullDayThresholdMinutes, @weekends, @holidays)
+          END
+        `);
+      res.json({ status: "ok" });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Failed to save payroll config" });
+    }
+  });
+
+  // Helper to ensure PayrollConfigs table exists
+  async function initPayrollTable() {
+    const db = await getPool();
+    if (!db) return;
+    await db.request().query(`
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='PayrollConfigs' and xtype='U')
+      CREATE TABLE PayrollConfigs (
+          employeeId NVARCHAR(255) PRIMARY KEY,
+          baseSalary DECIMAL(18, 2) DEFAULT 0.00,
+          gracePeriodMinutes INT DEFAULT 15,
+          halfDayThresholdMinutes INT DEFAULT 30,
+          fullDayThresholdMinutes INT DEFAULT 60,
+          weekends NVARCHAR(MAX) DEFAULT '5,6',
+          holidays NVARCHAR(MAX) DEFAULT '[]'
+      )
+    `);
+  }
+  initPayrollTable();
+
   app.get("/api/attendance", async (req, res) => {
     const db = await getPool();
     if (!db) return res.json([]);

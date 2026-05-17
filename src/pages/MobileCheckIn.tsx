@@ -1,60 +1,11 @@
 import React, { useState, useEffect } from "react";
-import { Fingerprint, MapPin, CheckCircle2, XCircle, Loader2, LogOut, ShieldCheck, Lock } from "lucide-react";
+import { Fingerprint, MapPin, CheckCircle2, XCircle, Loader2, LogOut } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/src/lib/utils";
 
-/**
- * Native Biometric Authentication using WebAuthn (Simulated for Demo Environment)
- * This triggers the OS-level biometric prompt (Touch ID, Face ID, Android Biometrics).
- */
-async function authenticateBiometrically(): Promise<boolean> {
-  try {
-    // 1. Check if platform biometrics are supported
-    if (!window.PublicKeyCredential || !await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()) {
-      console.warn("Platform biometrics not available, falling back to simulated prompt.");
-      return true; // For demo purposes, we allow fallback if hardware is missing
-    }
-
-    // 2. Trigger Biometric Prompt
-    // Note: In a real production app, the challenge should come from the server
-    const challenge = new Uint8Array(32);
-    window.crypto.getRandomValues(challenge);
-
-    const options: any = {
-      publicKey: {
-        challenge,
-        timeout: 60000,
-        userVerification: "required",
-        // This is a dummy request to trigger the native biometric prompt
-        // On mobile chrome/safari, this opens the native biometric sheet
-        allowCredentials: [] 
-      }
-    };
-
-    // We use a try-catch because if no credentials exist, it might throw
-    // But most modern browsers will show the prompt first
-    try {
-      await navigator.credentials.get(options);
-      return true;
-    } catch (e: any) {
-      // If NotAllowedError, user cancelled. 
-      // If we are in a dev environment/iframe, it might fail, so we simulate progress for the UI
-      if (e.name === "NotAllowedError") return false;
-      
-      // For the sake of the developer preview/demo, if it's a technical error (like iframe constraints)
-      // we'll show a "Simulated Secure Prompt" if the real one is blocked
-      console.log("Native prompt blocked/failed, using simulation:", e.message);
-      return new Promise((resolve) => setTimeout(() => resolve(true), 1500));
-    }
-  } catch (err) {
-    console.error("Biometric error:", err);
-    return true; 
-  }
-}
-
 export default function MobileCheckIn() {
-  const [status, setStatus] = useState<'idle' | 'scanning' | 'checking' | 'success' | 'error'>('idle');
+  const [status, setStatus] = useState<'idle' | 'checking' | 'success' | 'error'>('idle');
   const [currentMode, setCurrentMode] = useState<'In' | 'Out'>('Out');
   const [locationError, setLocationError] = useState<string | null>(null);
   const [inZone, setInZone] = useState<boolean | null>(null);
@@ -102,17 +53,9 @@ export default function MobileCheckIn() {
     navigate("/");
   };
 
-  const startVerification = async () => {
+  const startVerification = () => {
     if (!user) return;
-    
-    setStatus('scanning');
-    
-    const success = await authenticateBiometrically();
-    if (success) {
-      handleAction();
-    } else {
-      setStatus('idle');
-    }
+    handleAction();
   };
 
   const handleAction = () => {
@@ -159,7 +102,8 @@ export default function MobileCheckIn() {
       (err) => {
         setLocationError(err.message);
         setStatus('error');
-      }
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
   };
 
@@ -207,26 +151,6 @@ export default function MobileCheckIn() {
 
       <div className="flex-1 flex flex-col items-center justify-center w-full py-12">
         <AnimatePresence mode="wait">
-          {status === 'scanning' && (
-            <motion.div 
-              key="scanning"
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 1.1 }}
-              className="flex flex-col items-center justify-center"
-            >
-              <div className="relative w-40 h-40 flex items-center justify-center">
-                <div className="absolute inset-0 border-4 border-primary/20 rounded-[40px] animate-pulse" />
-                <div className="absolute inset-2 border-2 border-dashed border-primary/40 rounded-[35px] animate-[spin_10s_linear_infinity]" />
-                <Lock className="w-16 h-16 text-primary animate-bounce" />
-              </div>
-              <div className="mt-8 text-center">
-                <h3 className="text-xl font-bold">Biometric Auth</h3>
-                <p className="text-sm text-on-surface-variant mt-2">Confirming your identity...</p>
-              </div>
-            </motion.div>
-          )}
-
           {status === 'idle' && (
             <motion.button
               key="idle"
