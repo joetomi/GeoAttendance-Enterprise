@@ -250,13 +250,42 @@ async function startServer() {
   app.get("/api/attendance/report", async (req, res) => {
     const db = await getPool();
     if (!db) return res.json([]);
-    const result = await db.request().query(`
+    
+    const { from, to, employeeId } = req.query;
+    let query = `
       SELECT l.*, e.name as employeeName, e.department, e.username
       FROM AttendanceLogs l
       LEFT JOIN Employees e ON l.employeeId = e.id
-      ORDER BY l.timestamp ASC
-    `);
-    res.json(result.recordset);
+      WHERE 1=1
+    `;
+    
+    const request = db.request();
+    
+    if (from) {
+      request.input("from", sql.DateTime, new Date(from as string));
+      query += " AND l.timestamp >= @from";
+    }
+    if (to) {
+      // Add one day to 'to' to include the full day
+      const toDate = new Date(to as string);
+      toDate.setDate(toDate.getDate() + 1);
+      request.input("to", sql.DateTime, toDate);
+      query += " AND l.timestamp < @to";
+    }
+    if (employeeId && employeeId !== "all") {
+      request.input("employeeId", sql.NVarChar, employeeId);
+      query += " AND l.employeeId = @employeeId";
+    }
+    
+    query += " ORDER BY l.timestamp ASC";
+    
+    try {
+      const result = await request.query(query);
+      res.json(result.recordset);
+    } catch (err) {
+      console.error("Report query failed:", err);
+      res.status(500).json({ error: "Failed to generate report" });
+    }
   });
 
   app.get("/api/attendance", async (req, res) => {

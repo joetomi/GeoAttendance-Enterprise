@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Plus, Trash2, MoreVertical, ShieldCheck, UserMinus, Users, ChevronLeft, ChevronRight, X, Edit3, Download, FileSpreadsheet } from "lucide-react";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
+import { saveAs } from "file-saver";
 import { Employee } from "../types";
 import { cn } from "@/src/lib/utils";
 import { Header } from "../components/Navigation";
@@ -15,6 +16,9 @@ export default function AdminDashboard() {
   const [showModal, setShowModal] = useState(false);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [filterStartDate, setFilterStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [filterEndDate, setFilterEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const [filterEmployeeId, setFilterEmployeeId] = useState("all");
   const [newEmployee, setNewEmployee] = useState({ 
     username: "", 
     password: "", 
@@ -167,12 +171,22 @@ export default function AdminDashboard() {
   const exportToExcel = async () => {
     try {
       setLoading(true);
-      const res = await fetch("/api/attendance/report");
+      const queryParams = new URLSearchParams({
+        from: filterStartDate,
+        to: filterEndDate,
+        employeeId: filterEmployeeId
+      });
+      
+      const res = await fetch(`/api/attendance/report?${queryParams.toString()}`);
       if (!res.ok) throw new Error("Failed to fetch report data");
       const logs = await res.json();
       
-      // Process logs into rows: { Name, Date, Check In, Check Out }
-      // We group by employee and date
+      if (logs.length === 0) {
+        alert("No activity logs found for the selected filters.");
+        return;
+      }
+      
+      // Group by employee and date
       const reportMap: Record<string, any> = {};
       
       logs.forEach((log: any) => {
@@ -183,45 +197,104 @@ export default function AdminDashboard() {
         
         if (!reportMap[groupKey]) {
           reportMap[groupKey] = {
-            "Employee Name": log.employeeName || "Unknown",
-            "Department": log.department || "N/A",
-            "Date": dateKey,
-            "Check In": null,
-            "Check Out": null,
+            name: log.employeeName || "Unknown",
+            dept: log.department || "N/A",
+            date: dateKey,
+            checkIn: null,
+            checkOut: null,
             _inTime: Infinity,
             _outTime: -Infinity
           };
         }
         
         const timeMs = dateObj.getTime();
-        const timeStr = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const timeStr = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
         
         if (log.status === "In") {
           if (timeMs < reportMap[groupKey]._inTime) {
             reportMap[groupKey]._inTime = timeMs;
-            reportMap[groupKey]["Check In"] = timeStr;
+            reportMap[groupKey].checkIn = timeStr;
           }
         } else if (log.status === "Out") {
           if (timeMs > reportMap[groupKey]._outTime) {
             reportMap[groupKey]._outTime = timeMs;
-            reportMap[groupKey]["Check Out"] = timeStr;
+            reportMap[groupKey].checkOut = timeStr;
           }
         }
       });
       
-      const finalData = Object.values(reportMap).map(({ _inTime, _outTime, ...rest }) => rest);
-      
-      const ws = XLSX.utils.json_to_sheet(finalData);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Attendance Report");
-      
-      // Generate filename with date
-      const fileName = `Attendance_Report_${new Date().toISOString().split('T')[0]}.xlsx`;
-      XLSX.writeFile(wb, fileName);
+      const finalData = Object.values(reportMap).map((item) => {
+        let hours = "0.00";
+        if (item._inTime !== Infinity && item._outTime !== -Infinity && item._outTime > item._inTime) {
+          hours = ((item._outTime - item._inTime) / (1000 * 60 * 60)).toFixed(2);
+        }
+        return {
+          "Staff Name": item.name,
+          "Department": item.dept,
+          "Date": item.date,
+          "Check In": item.checkIn || "--:--",
+          "Check Out": item.checkOut || "--:--",
+          "Work Hours": hours
+        };
+      });
+
+      // Create Excel workbook
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet("Attendance Report");
+
+      // Add Headers
+      worksheet.columns = [
+        { header: "Staff Name", key: "Staff Name", width: 25 },
+        { header: "Department", key: "Department", width: 20 },
+        { header: "Date", key: "Date", width: 15 },
+        { header: "Check In", key: "Check In", width: 12 },
+        { header: "Check Out", key: "Check Out", width: 12 },
+        { header: "Work Hours", key: "Work Hours", width: 15 },
+      ];
+
+      // Add Data
+      worksheet.addRows(finalData);
+
+      // Make headers bold and styled
+      worksheet.getRow(1).font = { bold: true, color: { argb: "FFFFFF" } };
+      worksheet.getRow(1).fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "059669" } // Emerald-600
+      };
+      worksheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
+
+      // Apply borders to all current cells
+      worksheet.eachRow((row, rowNumber) => {
+        row.eachCell((cell) => {
+          cell.border = {
+            top: { style: "thin" },
+            left: { style: "thin" },
+            bottom: { style: "thin" },
+            right: { style: "thin" }
+          };
+          if (rowNumber > 1) {
+            cell.alignment = { vertical: 'middle', horizontal: 'center' };
+            // Zebra striping
+            if (rowNumber % 2 === 0) {
+              cell.fill = {
+                type: "pattern",
+                pattern: "solid",
+                fgColor: { argb: "F9FAFB" }
+              };
+            }
+          }
+        });
+      });
+
+      // Convert to buffer and save
+      const buffer = await workbook.xlsx.writeBuffer();
+      const fileName = `Attendance_${filterEmployeeId === 'all' ? 'Company' : 'Staff'}_${filterStartDate}_to_${filterEndDate}.xlsx`;
+      saveAs(new Blob([buffer]), fileName);
       
     } catch (err) {
       console.error("Export failed:", err);
-      alert("Failed to generate Excel report.");
+      alert("Failed to generate professional Excel report.");
     } finally {
       setLoading(false);
     }
@@ -374,19 +447,55 @@ export default function AdminDashboard() {
 
             {/* Right Column: Attendance Logs */}
             <div className="xl:col-span-1">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+              <div className="flex flex-col gap-6 mb-8">
                 <div>
                   <h3 className="text-2xl font-bold text-on-surface tracking-tight">Activity Logs</h3>
                   <p className="text-sm text-on-surface-variant">Real-time attendance streams.</p>
                 </div>
-                <button 
-                  onClick={exportToExcel} 
-                  disabled={loading}
-                  className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-emerald-700 transition-colors disabled:opacity-50"
-                >
-                  <FileSpreadsheet className="w-4 h-4" />
-                  Excel Export
-                </button>
+
+                <div className="card p-4 bg-surface-container-high border border-outline-variant/30">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant opacity-60">From Date</label>
+                      <input 
+                        type="date" 
+                        value={filterStartDate}
+                        onChange={(e) => setFilterStartDate(e.target.value)}
+                        className="w-full bg-surface-container border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant opacity-60">To Date</label>
+                      <input 
+                        type="date" 
+                        value={filterEndDate}
+                        onChange={(e) => setFilterEndDate(e.target.value)}
+                        className="w-full bg-surface-container border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant opacity-60">Employee</label>
+                      <select 
+                        value={filterEmployeeId}
+                        onChange={(e) => setFilterEmployeeId(e.target.value)}
+                        className="w-full bg-surface-container border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20"
+                      >
+                        <option value="all">All Employees</option>
+                        {employees.map(emp => (
+                          <option key={emp.id} value={emp.id}>{emp.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <button 
+                      onClick={exportToExcel} 
+                      disabled={loading}
+                      className="w-full h-[38px] flex items-center justify-center gap-2 bg-emerald-600 text-white rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-emerald-700 transition-colors disabled:opacity-50"
+                    >
+                      <FileSpreadsheet className="w-4 h-4" />
+                      Export
+                    </button>
+                  </div>
+                </div>
               </div>
 
               <div className="card p-6 bg-surface-container overflow-hidden">

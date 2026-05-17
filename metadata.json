@@ -2,7 +2,8 @@
   "name": "GeoAttendance Enterprise",
   "description": "Smart Geofence Attendance System with production-ready employee management and geofencing configuration.",
   "requestFramePermissions": [
-    "geolocation"
+    "geolocation",
+    "camera"
   ],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
