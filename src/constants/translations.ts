@@ -115,6 +115,13 @@ export const translations = {
     justNow: "Just now",
     deleteDept: "Delete Department",
     deleteDeptConfirm: "Are you sure you want to delete this department? This action cannot be undone.",
+    aboutTitle: "About GeoAttendance",
+    aboutSub: "Enterprise Precision & Security",
+    developerInfo: "Developed and Implemented by",
+    developerName: "joe.co",
+    systemVersion: "System Version",
+    releaseDate: "Release Date",
+    may2024: "May 2024",
     days: ["Saturday", "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
   },
   ar: {
@@ -231,6 +238,13 @@ export const translations = {
     justNow: "الآن",
     deleteDept: "حذف القسم",
     deleteDeptConfirm: "هل أنت متأكد من حذف هذا القسم؟ لا يمكن التراجع عن هذا الإجراء.",
+    aboutTitle: "حول جيو-اتندانس",
+    aboutSub: "أمن المؤسسات والدقة المتناهية",
+    developerInfo: "تم التطوير والتنفيذ بواسطة",
+    developerName: "شركة joe.co",
+    systemVersion: "إصدار النظام",
+    releaseDate: "تاريخ الإصدار",
+    may2024: "مايو 2024",
     days: ["السبت", "الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة"],
   }
 };

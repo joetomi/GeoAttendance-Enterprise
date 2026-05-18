@@ -42,6 +42,8 @@ export default function DepartmentManagement() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [editingDept, setEditingDept] = useState<Department | null>(null);
+  const [editingDeptEmployees, setEditingDeptEmployees] = useState<Employee[]>([]);
+  const [checkingEmployees, setCheckingEmployees] = useState(false);
   const [loading, setLoading] = useState(true);
   const [empLoading, setEmpLoading] = useState(false);
 
@@ -108,6 +110,24 @@ export default function DepartmentManagement() {
       }
     } catch (err) {
       console.error("Save dept failed", err);
+    }
+  };
+
+  const openDeleteConfirm = async () => {
+    if (!editingDept) return;
+    setCheckingEmployees(true);
+    try {
+      const res = await fetch(`/api/departments/${editingDept.id}/employees`);
+      if (res.ok) {
+        const data = await res.json();
+        setEditingDeptEmployees(data);
+      }
+      setShowDeleteConfirm(true);
+    } catch (err) {
+      console.error("Check employees failed", err);
+      setShowDeleteConfirm(true);
+    } finally {
+      setCheckingEmployees(false);
     }
   };
 
@@ -304,10 +324,15 @@ export default function DepartmentManagement() {
                     {editingDept && (
                       <button 
                         type="button"
-                        onClick={() => setShowDeleteConfirm(true)}
-                        className="p-2 hover:bg-error/10 text-error rounded-full transition-colors"
+                        disabled={checkingEmployees}
+                        onClick={openDeleteConfirm}
+                        className="p-2 hover:bg-error/10 text-error rounded-full transition-colors disabled:opacity-50"
                       >
-                        <Trash2 className="w-5 h-5" />
+                        {checkingEmployees ? (
+                          <div className="w-5 h-5 border-2 border-error border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <Trash2 className="w-5 h-5" />
+                        )}
                       </button>
                     )}
                     <button 
@@ -408,9 +433,29 @@ export default function DepartmentManagement() {
                   <Trash2 className="w-8 h-8" />
                 </div>
                 <h3 className="text-xl font-bold text-on-surface mb-2">{t.deleteDept}</h3>
-                <p className="text-on-surface-variant mb-8 leading-relaxed opacity-60">
-                  {t.deleteDeptConfirm}
-                </p>
+                
+                {editingDeptEmployees.length > 0 ? (
+                  <div className="mb-8">
+                    <p className="text-error text-sm font-bold mb-4 px-2 py-1 bg-error/10 rounded-lg">
+                      {lang === "ar" 
+                        ? `هناك ${editingDeptEmployees.length} موظف في هذا القسم. هل أنت متأكد؟` 
+                        : `There are ${editingDeptEmployees.length} employees in this department. Are you sure?`}
+                    </p>
+                    <div className="max-h-32 overflow-y-auto space-y-2 bg-surface-container-highest/30 p-3 rounded-2xl border border-outline-variant/30 text-start">
+                      {editingDeptEmployees.map(emp => (
+                        <div key={emp.id} className="flex items-center gap-2">
+                          <div className="w-1.5 h-1.5 rounded-full bg-error" />
+                          <span className="text-xs text-on-surface-variant font-medium">{emp.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-on-surface-variant mb-8 leading-relaxed opacity-60">
+                    {t.deleteDeptConfirm}
+                  </p>
+                )}
+                
                 <div className="grid grid-cols-2 gap-4">
                   <button
                     onClick={() => setShowDeleteConfirm(false)}

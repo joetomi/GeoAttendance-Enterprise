@@ -324,6 +324,11 @@ export function Header({ title, onMenuClick }: { title: string; onMenuClick?: ()
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
   const [showLangMenu, setShowLangMenu] = useState(false);
   const [showNotifMenu, setShowNotifMenu] = useState(false);
+  const [showHelpModal, setShowHelpModal] = useState(false);
+
+  const userJson = localStorage.getItem("user");
+  const user = userJson ? JSON.parse(userJson) : null;
+  const isAdmin = user?.role === "admin";
 
   const handleLangChange = (l: Language) => {
     setLanguage(l);
@@ -407,97 +412,177 @@ export function Header({ title, onMenuClick }: { title: string; onMenuClick?: ()
         </div>
         <div className="flex items-center gap-1">
           {/* Notification Bell */}
-          <div className="relative">
-            <button 
-              onClick={handleToggleNotif}
-              className={cn(
-                "p-2 transition-colors rounded-full relative",
-                showNotifMenu ? "bg-primary/10 text-primary" : "text-on-surface-variant hover:bg-surface-container"
-              )}
-            >
-              <Bell className="w-5 h-5" />
-              {unreadCount > 0 && (
-                <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-primary text-[10px] text-white font-bold flex items-center justify-center rounded-full border-2 border-surface-container">
-                  {unreadCount > 9 ? '9+' : unreadCount}
-                </span>
-              )}
-            </button>
+          {isAdmin && (
+            <div className="relative">
+              <button 
+                onClick={handleToggleNotif}
+                className={cn(
+                  "p-2 transition-colors rounded-full relative",
+                  showNotifMenu ? "bg-primary/10 text-primary" : "text-on-surface-variant hover:bg-surface-container"
+                )}
+              >
+                <Bell className="w-5 h-5" />
+                {unreadCount > 0 && (
+                  <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-primary text-[10px] text-white font-bold flex items-center justify-center rounded-full border-2 border-surface-container">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </button>
 
-            <AnimatePresence>
-              {showNotifMenu && (
-                <div className="fixed inset-0 z-40" onClick={() => setShowNotifMenu(false)} />
-              )}
-              {showNotifMenu && (
-                <motion.div 
-                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                  className={cn(
-                    "absolute mt-2 w-80 bg-[#1E1E1E] border border-outline-variant rounded-2xl shadow-2xl overflow-hidden z-50",
-                    lang === "ar" ? "left-0" : "right-0"
-                  )}
-                  dir={lang === "ar" ? "rtl" : "ltr"}
-                >
-                  <div className="p-4 border-b border-outline-variant flex justify-between items-center bg-[#1A1A1A]">
-                    <h3 className="text-sm font-bold text-on-surface">{t.notifications}</h3>
-                    {unreadCount > 0 && (
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); markAllAsRead(); }}
-                        className="text-[10px] font-bold text-primary uppercase tracking-wider hover:underline"
-                      >
-                        {t.markAllRead}
-                      </button>
+              <AnimatePresence>
+                {showNotifMenu && (
+                  <div className="fixed inset-0 z-40" onClick={() => setShowNotifMenu(false)} />
+                )}
+                {showNotifMenu && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    className={cn(
+                      "absolute mt-2 w-80 bg-[#1E1E1E] border border-outline-variant rounded-2xl shadow-2xl overflow-hidden z-50",
+                      lang === "ar" ? "left-0" : "right-0"
                     )}
-                  </div>
-                  <div className="max-h-[400px] overflow-y-auto">
-                    {notifications.length > 0 ? (
-                      <div className="flex flex-col">
-                        {notifications.map((notif) => (
-                          <div 
-                            key={notif.id}
-                            onClick={() => !notif.isRead && markAsRead(notif.id)}
-                            className={cn(
-                              "p-4 border-b border-outline-variant/30 transition-colors cursor-pointer flex gap-4",
-                              notif.isRead ? "opacity-60 bg-transparent" : "bg-primary/5 hover:bg-primary/10"
-                            )}
-                          >
-                            <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center text-primary flex-shrink-0">
-                              <span className="text-sm font-bold">{notif.employeeName.charAt(0)}</span>
+                    dir={lang === "ar" ? "rtl" : "ltr"}
+                  >
+                    <div className="p-4 border-b border-outline-variant flex justify-between items-center bg-[#1A1A1A]">
+                      <h3 className="text-sm font-bold text-on-surface">{t.notifications}</h3>
+                      {unreadCount > 0 && (
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); markAllAsRead(); }}
+                          className="text-[10px] font-bold text-primary uppercase tracking-wider hover:underline"
+                        >
+                          {t.markAllRead}
+                        </button>
+                      )}
+                    </div>
+                    <div className="max-h-[400px] overflow-y-auto">
+                      {notifications.length > 0 ? (
+                        <div className="flex flex-col">
+                          {notifications.map((notif) => (
+                            <div 
+                              key={notif.id}
+                              onClick={() => !notif.isRead && markAsRead(notif.id)}
+                              className={cn(
+                                "p-4 border-b border-outline-variant/30 transition-colors cursor-pointer flex gap-4",
+                                notif.isRead ? "opacity-60 bg-transparent" : "bg-primary/5 hover:bg-primary/10"
+                              )}
+                            >
+                              <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center text-primary flex-shrink-0">
+                                <span className="text-sm font-bold">{notif.employeeName.charAt(0)}</span>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-bold text-on-surface truncate">
+                                  {notif.employeeName}
+                                </p>
+                                <p className="text-xs text-on-surface-variant line-clamp-1">
+                                  {lang === "ar" ? `${notif.action} - ${notif.department}` : `${notif.action} - ${notif.department}`}
+                                </p>
+                                <p className="text-[10px] text-primary font-medium mt-1">
+                                  {new Date(notif.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </p>
+                              </div>
+                              {!notif.isRead && (
+                                <div className="w-2 h-2 rounded-full bg-primary mt-1 flex-shrink-0" />
+                              )}
                             </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-bold text-on-surface truncate">
-                                {notif.employeeName}
-                              </p>
-                              <p className="text-xs text-on-surface-variant line-clamp-1">
-                                {lang === "ar" ? `${notif.action} - ${notif.department}` : `${notif.action} - ${notif.department}`}
-                              </p>
-                              <p className="text-[10px] text-primary font-medium mt-1">
-                                {new Date(notif.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                              </p>
-                            </div>
-                            {!notif.isRead && (
-                              <div className="w-2 h-2 rounded-full bg-primary mt-1 flex-shrink-0" />
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="p-8 text-center">
-                        <Bell className="w-8 h-8 text-on-surface-variant mx-auto mb-3 opacity-20" />
-                        <p className="text-sm text-on-surface-variant opacity-60">{t.noNotifications}</p>
-                      </div>
-                    )}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="p-8 text-center">
+                          <Bell className="w-8 h-8 text-on-surface-variant mx-auto mb-3 opacity-20" />
+                          <p className="text-sm text-on-surface-variant opacity-60">{t.noNotifications}</p>
+                        </div>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
           
-          <button className="p-2 text-on-surface-variant hover:bg-surface-container transition-colors rounded-full">
+          <button 
+            onClick={() => setShowHelpModal(true)}
+            className="p-2 text-on-surface-variant hover:bg-surface-container transition-colors rounded-full"
+          >
             <HelpCircle className="w-5 h-5" />
           </button>
         </div>
       </div>
+
+      {/* Help / About Modal */}
+      <AnimatePresence>
+        {showHelpModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowHelpModal(false)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-md"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative bg-surface-container border border-outline-variant rounded-[32px] p-8 max-w-sm w-full shadow-2xl text-center"
+              dir={lang === "ar" ? "rtl" : "ltr"}
+            >
+              <button 
+                onClick={() => setShowHelpModal(false)}
+                className="absolute top-6 right-6 p-2 hover:bg-white/5 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5 text-on-surface-variant" />
+              </button>
+
+              <div className="mb-8">
+                <div className="w-24 h-24 bg-white/5 rounded-3xl flex items-center justify-center mx-auto mb-6 p-4 border border-outline-variant/30">
+                  <img 
+                    src="/joe_logo.png" 
+                    alt="joe.co logo" 
+                    className="w-full h-full object-contain"
+                    onError={(e) => {
+                      // Fallback if logo doesn't exist
+                      (e.target as HTMLImageElement).src = "https://ui-avatars.com/api/?name=Joe+Co&background=10B981&color=fff";
+                    }}
+                  />
+                </div>
+                <h3 className="text-2xl font-bold text-on-surface">{t.aboutTitle}</h3>
+                <p className="text-sm text-primary font-bold uppercase tracking-widest mt-1">
+                  {t.aboutSub}
+                </p>
+              </div>
+
+              <div className="space-y-6 pt-6 border-t border-outline-variant/30 text-start">
+                <div>
+                  <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest block mb-1 opacity-60">
+                    {t.developerInfo}
+                  </label>
+                  <p className="text-lg font-bold text-on-surface">{t.developerName}</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest block mb-1 opacity-60">
+                      {t.systemVersion}
+                    </label>
+                    <p className="text-sm font-medium text-on-surface">v2.4.0-Enterprise</p>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest block mb-1 opacity-60">
+                      {t.releaseDate}
+                    </label>
+                    <p className="text-sm font-medium text-on-surface">{t.may2024}</p>
+                  </div>
+                </div>
+              </div>
+
+              <p className="mt-10 text-[10px] text-on-surface-variant opacity-40 text-center">
+                {t.copyright}
+              </p>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </header>
   );
 }

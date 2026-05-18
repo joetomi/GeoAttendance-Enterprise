@@ -11,6 +11,7 @@ import { useLanguage } from "../contexts/LanguageContext";
 
 export default function AdminDashboard() {
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [departments, setDepartments] = useState<any[]>([]);
   const [attendance, setAttendance] = useState<any[]>([]);
   const [onlineUsers, setOnlineUsers] = useState<Employee[]>([]);
   const [stats, setStats] = useState({ totalEmployees: 0, activeToday: 0, onlineNow: 0, totalLogs: 0 });
@@ -36,16 +37,27 @@ export default function AdminDashboard() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [empRes, attRes, onlineRes, statsRes] = await Promise.all([
+        const [empRes, attRes, onlineRes, statsRes, deptRes] = await Promise.all([
           fetch("/api/employees").catch(() => null),
           fetch("/api/attendance").catch(() => null),
           fetch("/api/employees/online").catch(() => null),
-          fetch("/api/stats").catch(() => null)
+          fetch("/api/stats").catch(() => null),
+          fetch("/api/departments").catch(() => null)
         ]);
 
         if (empRes && empRes.ok) {
           const data = await empRes.json();
           setEmployees(Array.isArray(data) ? data : []);
+        }
+
+        if (deptRes && deptRes.ok) {
+          const data = await deptRes.json();
+          setDepartments(Array.isArray(data) ? data : []);
+          
+          // Set default department if not already set or if creating new
+          if (!editingId && data.length > 0) {
+            setNewEmployee(prev => ({ ...prev, department: data[0].name }));
+          }
         }
         
         if (attRes && attRes.ok) {
@@ -646,10 +658,13 @@ export default function AdminDashboard() {
                       onChange={(e) => setNewEmployee({ ...newEmployee, department: e.target.value })}
                       style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='currentColor'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundSize: '1.5em' }}
                     >
-                      <option className="text-on-surface">{lang === "ar" ? "العمليات" : "Operations"}</option>
-                      <option className="text-on-surface">{lang === "ar" ? "الخدمات اللوجستية" : "Logistics"}</option>
-                      <option className="text-on-surface">{lang === "ar" ? "الموارد البشرية" : "Human Resources"}</option>
-                      <option className="text-on-surface">{lang === "ar" ? "الأمن" : "Security"}</option>
+                      {departments.length === 0 ? (
+                        <option value="General Admin" className="text-on-surface">General Admin</option>
+                      ) : (
+                        departments.map(dept => (
+                          <option key={dept.id} value={dept.name} className="text-on-surface">{dept.name}</option>
+                        ))
+                      )}
                     </select>
                   </div>
                   <button type="submit" className="btn-secondary w-full mt-4">
