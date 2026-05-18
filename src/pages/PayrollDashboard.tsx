@@ -255,9 +255,8 @@ export default function PayrollDashboard() {
 
   return (
     <div className="min-h-screen bg-surface bg-stars" dir={lang === "ar" ? "rtl" : "ltr"}>
-      <Header title={t.navPayroll} />
       
-      <main className="lg:pl-[312px] rtl:lg:pl-8 rtl:lg:pr-[312px] p-8 pb-32 transition-all">
+      <main className="p-8 pb-32 transition-all">
         <div className="max-w-7xl mx-auto">
           
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10">
@@ -485,9 +484,9 @@ export default function PayrollDashboard() {
                   <CheckCircle2 className="w-5 h-5 text-emerald-500" />
                 </div>
                 <div>
-                  <h4 className="text-sm font-bold text-on-surface">Automated Audit Active</h4>
+                  <h4 className="text-sm font-bold text-on-surface">{t.automatedAudit}</h4>
                   <p className="text-xs text-on-surface-variant opacity-60 mt-1">
-                    System verifies every log against geofence & timestamp rules before processing payroll line-items.
+                    {t.automatedAuditSub}
                   </p>
                 </div>
               </div>

@@ -17,6 +17,7 @@ export default function MobileCheckIn() {
 
   const { lang, t, setLanguage } = useLanguage();
   const [showLangMenu, setShowLangMenu] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const handleLangChange = (l: Language) => {
     setLanguage(l);
@@ -39,8 +40,14 @@ export default function MobileCheckIn() {
     const savedUser = localStorage.getItem("user");
     if (savedUser) {
       const u = JSON.parse(savedUser);
+      if (u.role === "admin") {
+        navigate("/admin");
+        return;
+      }
       setUser(u);
       fetchStatus(u.id);
+    } else {
+      navigate("/login");
     }
 
     // Fetch Geofence config
@@ -98,17 +105,35 @@ export default function MobileCheckIn() {
             setInZone(newMode === 'In');
           } else {
             setStatus('error');
-            setLocationError(data.message || data.error || "Request failed");
+            const msg = data.message || data.error || "Request failed";
+            if (msg.includes("Outside geofence area")) {
+              const distanceMatch = msg.match(/\(Distance: (\d+)m\)/);
+              if (distanceMatch) {
+                const distance = distanceMatch[1];
+                setLocationError(`${t.outsideFence} (${lang === "ar" ? "مسافة" : "Distance"}: ${distance}m)`);
+              } else {
+                setLocationError(t.outsideFence);
+              }
+            } else {
+              setLocationError(msg);
+            }
           }
         })
         .catch((err) => {
           console.error("Network error during attendance:", err);
           setStatus('error');
-          setLocationError("Network connection failed. Please try again.");
+          setLocationError(lang === "ar" ? "فشل الاتصال بالشبكة. يرجى المحاولة مرة أخرى." : "Network connection failed. Please try again.");
         });
       },
       (err) => {
-        setLocationError(err.message);
+        // Localize browser geolocation errors if possible
+        let errorMsg = err.message;
+        if (lang === "ar") {
+          if (err.code === 1) errorMsg = "تم رفض الوصول إلى الموقع";
+          else if (err.code === 2) errorMsg = "الموقع غير متاح";
+          else if (err.code === 3) errorMsg = "انتهت مهلة الحصول على الموقع";
+        }
+        setLocationError(errorMsg);
         setStatus('error');
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
@@ -117,70 +142,13 @@ export default function MobileCheckIn() {
 
   return (
     <div className="min-h-screen bg-black bg-stars text-white flex flex-col items-center p-6 pb-24 overflow-x-hidden" dir={lang === "ar" ? "rtl" : "ltr"}>
-      {/* Header with Language Selector */}
-      <header className="w-full max-w-lg flex justify-between items-center mb-10 pt-4">
-        <div className="flex items-center gap-4">
-          <div className="relative">
-            <button 
-              onClick={() => setShowLangMenu(!showLangMenu)}
-              className="flex items-center gap-2 bg-white/5 border border-white/10 px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-widest"
-            >
-              <span>{t.langFlag}</span>
-              <ChevronDown className={cn("w-3 h-3 transition-transform", showLangMenu && "rotate-180")} />
-            </button>
-            <AnimatePresence>
-              {showLangMenu && (
-                <motion.div 
-                  initial={{ opacity: 0, y: 5 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 5 }}
-                  className={cn(
-                    "absolute mt-2 w-32 bg-surface-container-highest border border-white/10 rounded-xl shadow-2xl p-1 z-[100]",
-                    lang === "ar" ? "right-0" : "left-0"
-                  )}
-                >
-                  {(["en", "ar"] as const).map((l) => (
-                    <button
-                      key={l}
-                      onClick={() => handleLangChange(l)}
-                      className={cn(
-                        "w-full flex items-center justify-between px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest",
-                        lang === l ? "bg-primary text-white" : "hover:bg-white/5 text-white/50"
-                      )}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span>{translations[l].langFlag}</span>
-                        <span>{translations[l].langName}</span>
-                      </div>
-                      {lang === l && <Check className="w-3 h-3" />}
-                    </button>
-                  ))}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-          <div>
-            <h2 className="text-xl font-bold leading-none">{t.welcomeUser}, {user?.name || user?.username}</h2>
-            <p className="text-[10px] uppercase font-bold tracking-[0.2em] text-white/40 mt-1.5 flex items-center gap-2">
-              Enterprise HQ • Personnel
-            </p>
-          </div>
-        </div>
-        <button 
-          onClick={handleLogout}
-          className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center border border-white/10 active:scale-95 transition-all text-white/40"
-        >
-          <LogOut className="w-4 h-4" />
-        </button>
-      </header>
-
       {/* Accuracy & Status */}
       <div className="w-full max-w-lg grid grid-cols-2 gap-4 mb-8">
         <div className="bg-white/5 border border-white/10 rounded-[32px] p-6 flex flex-col justify-between h-32 bg-pattern-wavy">
           <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/40">{t.sessionStatus}</span>
           <div className="flex items-center gap-2">
             <div className={cn("w-2 h-2 rounded-full", currentMode === 'In' ? "bg-emerald-500 shadow-[0_0_8px_var(--color-emerald-500)]" : "bg-white/20")} />
-            <span className="text-sm font-bold">{currentMode === 'In' ? 'Active' : t.notActive}</span>
+            <span className="text-sm font-bold">{currentMode === 'In' ? (lang === "ar" ? "نشط" : "Active") : t.notActive}</span>
           </div>
         </div>
         <div className="bg-white/5 border border-white/10 rounded-[32px] p-6 flex flex-col justify-between h-32 bg-pattern-wavy">
@@ -285,14 +253,14 @@ export default function MobileCheckIn() {
             >
               <div className="mb-8 p-4 bg-white/5 border border-white/10 rounded-2xl">
                 <p className="text-[10px] uppercase font-bold tracking-[0.3em] text-red-500">
-                  Authentication Restricted
+                  {t.authRestricted}
                 </p>
               </div>
               <h3 className="text-2xl font-bold text-white uppercase tracking-widest leading-loose">
                 {t.actionFailed}
               </h3>
               <p className="text-white/60 mt-2 max-w-xs text-sm font-medium">
-                {locationError || t.outsideFence}
+                {locationError}
               </p>
               <button 
                 onClick={() => setStatus('idle')}
@@ -328,6 +296,49 @@ export default function MobileCheckIn() {
         </div>
         <p className="text-xs font-bold">{geofence?.radius || 0}m Radius</p>
       </div>
+
+      <AnimatePresence>
+        {showLogoutConfirm && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowLogoutConfirm(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative bg-surface-container border border-outline-variant rounded-3xl p-8 max-w-sm w-full shadow-2xl text-center"
+              dir={lang === "ar" ? "rtl" : "ltr"}
+            >
+              <div className="w-16 h-16 bg-error/10 text-error rounded-full flex items-center justify-center mx-auto mb-6">
+                <LogOut className="w-8 h-8" />
+              </div>
+              <h3 className="text-xl font-bold text-on-surface mb-2">{t.logout}</h3>
+              <p className="text-on-surface-variant mb-8 leading-relaxed">
+                {t.logoutConfirm}
+              </p>
+              <div className="grid grid-cols-2 gap-4">
+                <button
+                  onClick={() => setShowLogoutConfirm(false)}
+                  className="px-6 py-3 rounded-2xl border border-outline-variant text-sm font-bold uppercase tracking-widest hover:bg-surface-container-high transition-all"
+                >
+                  {t.cancel}
+                </button>
+                <button
+                  onClick={handleLogout}
+                  className="px-6 py-3 rounded-2xl bg-error text-white text-sm font-bold uppercase tracking-widest hover:bg-error/90 shadow-lg shadow-error/20 transition-all"
+                >
+                  {t.confirm}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

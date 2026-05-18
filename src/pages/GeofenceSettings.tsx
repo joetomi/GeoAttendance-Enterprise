@@ -59,9 +59,8 @@ export default function GeofenceSettings() {
 
   return (
     <div className="min-h-screen bg-surface bg-stars" dir={lang === "ar" ? "rtl" : "ltr"}>
-      <Header title={t.navGeofence} />
       
-      <main className="lg:pl-[312px] rtl:lg:pl-8 rtl:lg:pr-[312px] p-8 pb-32 transition-all">
+      <main className="p-8 pb-32 transition-all">
         <div className="max-w-7xl mx-auto">
           <div className="mb-8">
             <h3 className="text-2xl font-bold text-on-surface tracking-tight">{t.geofenceTitle}</h3>

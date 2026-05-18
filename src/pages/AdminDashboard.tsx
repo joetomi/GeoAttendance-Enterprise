@@ -310,9 +310,8 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-surface bg-stars" dir={lang === "ar" ? "rtl" : "ltr"}>
-      <Header title={t.navEmployees} />
       
-      <main className="lg:pl-[312px] rtl:lg:pl-8 rtl:lg:pr-[312px] p-8 pb-32 transition-all">
+      <main className="p-8 pb-32 transition-all">
         <div className="max-w-7xl mx-auto">
           {/* Stats Bar */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">

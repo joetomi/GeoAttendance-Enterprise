@@ -8,6 +8,9 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import sql from "mssql";
+import { WebSocketServer, WebSocket } from "ws";
+import { createServer } from "http";
+import { Building2 } from "lucide-react";
 
 const PORT = 3000;
 const isProd = process.env.NODE_ENV === "production";
@@ -83,6 +86,38 @@ async function getPool() {
           );
         END
 
+        IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='Notifications' AND xtype='U')
+        BEGIN
+          CREATE TABLE Notifications (
+            id NVARCHAR(50) PRIMARY KEY,
+            employeeName NVARCHAR(100),
+            username NVARCHAR(100),
+            department NVARCHAR(100),
+            action NVARCHAR(50),
+            timestamp DATETIMEOffset,
+            isRead BIT DEFAULT 0
+          );
+        END
+
+        IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='Departments' AND xtype='U')
+        BEGIN
+          CREATE TABLE Departments (
+            id NVARCHAR(50) PRIMARY KEY,
+            name NVARCHAR(100) NOT NULL,
+            description NVARCHAR(255),
+            color NVARCHAR(20) DEFAULT '#3B82F6'
+          );
+          
+          -- Seed initial departments if none exist
+          IF NOT EXISTS (SELECT * FROM Departments)
+          BEGIN
+            INSERT INTO Departments (id, name, description, color) VALUES 
+            ('dept_1', 'Engineering', 'Software and Infrastructure', '#3B82F6'),
+            ('dept_2', 'Marketing', 'Growth and Strategy', '#EC4899'),
+            ('dept_3', 'Operations', 'Global Logistics', '#10B981');
+          END
+        END
+
         -- 4. Initialize Data
         IF NOT EXISTS (SELECT * FROM Geofence)
           INSERT INTO Geofence (latitude, longitude, radius, name) VALUES (34.0522, -118.2437, 200, 'HQ Main Entrance');
@@ -122,7 +157,25 @@ function calculateHaversineDistance(lat1: number, lon1: number, lat2: number, lo
 
 async function startServer() {
   const app = express();
+  const httpServer = createServer(app);
+  const wss = new WebSocketServer({ server: httpServer });
+
   app.use(express.json());
+
+  // WebSocket connection handling
+  wss.on("connection", (ws) => {
+    console.log("Client connected to WebSocket");
+    ws.on("close", () => console.log("Client disconnected from WebSocket"));
+  });
+
+  const broadcastNotification = (payload: any) => {
+    const message = JSON.stringify({ type: "notification", payload });
+    wss.clients.forEach((client) => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(message);
+      }
+    });
+  };
 
   // API Routes
   app.get("/api/health", (req, res) => {
@@ -148,10 +201,37 @@ async function startServer() {
       const result = await db.request()
         .input("username", sql.NVarChar, username)
         .input("password", sql.NVarChar, password)
-        .query("SELECT id, name, role, username FROM Employees WHERE username = @username AND password = @password");
+        .query("SELECT id, name, role, username, department FROM Employees WHERE username = @username AND password = @password");
 
       if (result.recordset.length > 0) {
-        res.json(result.recordset[0]);
+        const user = result.recordset[0];
+        
+        // Log notification for successful login
+        const notificationId = Math.random().toString(36).substr(2, 9);
+        const timestamp = new Date();
+        const payload = {
+          id: notificationId,
+          employeeName: user.name,
+          username: user.username,
+          department: user.department || "General",
+          action: "Logged In",
+          timestamp: timestamp.toISOString(),
+          isRead: false
+        };
+
+        db.request()
+          .input("id", sql.NVarChar, notificationId)
+          .input("name", sql.NVarChar, payload.employeeName)
+          .input("user", sql.NVarChar, payload.username)
+          .input("dept", sql.NVarChar, payload.department)
+          .input("action", sql.NVarChar, payload.action)
+          .input("time", sql.DateTimeOffset, timestamp)
+          .query("INSERT INTO Notifications (id, employeeName, username, department, action, timestamp) VALUES (@id, @name, @user, @dept, @action, @time)")
+          .catch(err => console.error("Failed to log notification:", err));
+
+        broadcastNotification(payload);
+
+        res.json(user);
       } else {
         res.status(401).json({ error: "Invalid username or password" });
       }
@@ -494,17 +574,26 @@ async function startServer() {
     }
 
     try {
-      const id = Math.random().toString(36).substr(2, 9);
-      const timestamp = new Date();
-      
-      await db.request()
-        .input("id", sql.NVarChar, id)
-        .input("employeeId", sql.NVarChar, employeeId)
-        .input("timestamp", sql.DateTimeOffset, timestamp)
-        .input("status", sql.NVarChar, "Out")
-        .query("INSERT INTO AttendanceLogs (id, employeeId, timestamp, status) VALUES (@id, @employeeId, @timestamp, @status)");
+      const fenceRes = await db.request().query("SELECT TOP 1 * FROM Geofence");
+      const geofence = fenceRes.recordset[0];
 
-      res.json({ success: true, log: { id, employeeId, timestamp, status: "Out" } });
+      const distanceMeter = calculateHaversineDistance(geofence.latitude, geofence.longitude, lat, lng);
+
+      if (distanceMeter <= geofence.radius) {
+        const id = Math.random().toString(36).substr(2, 9);
+        const timestamp = new Date();
+        
+        await db.request()
+          .input("id", sql.NVarChar, id)
+          .input("employeeId", sql.NVarChar, employeeId)
+          .input("timestamp", sql.DateTimeOffset, timestamp)
+          .input("status", sql.NVarChar, "Out")
+          .query("INSERT INTO AttendanceLogs (id, employeeId, timestamp, status) VALUES (@id, @employeeId, @timestamp, @status)");
+
+        res.json({ success: true, log: { id, employeeId, timestamp, status: "Out" } });
+      } else {
+        res.status(400).json({ success: false, message: `Outside geofence area (Distance: ${Math.round(distanceMeter)}m)` });
+      }
     } catch (err) {
       console.error("Check-out error:", err);
       res.status(500).json({ error: "Check-out failed" });
@@ -579,6 +668,105 @@ async function startServer() {
     }
   });
 
+  app.get("/api/notifications", async (req, res) => {
+    const db = await getPool();
+    if (!db) return res.json([]);
+    try {
+      const result = await db.request().query("SELECT TOP 50 * FROM Notifications ORDER BY timestamp DESC");
+      res.json(result.recordset);
+    } catch (err) {
+      res.status(500).json({ error: "Failed to fetch notifications" });
+    }
+  });
+
+  app.post("/api/notifications/read", async (req, res) => {
+    const db = await getPool();
+    if (!db) return res.status(503).json({ error: "DB not connected" });
+    const { id } = req.body;
+    try {
+      if (id === "all") {
+        await db.request().query("UPDATE Notifications SET isRead = 1");
+      } else {
+        await db.request().input("id", sql.NVarChar, id).query("UPDATE Notifications SET isRead = 1 WHERE id = @id");
+      }
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to mark as read" });
+    }
+  });
+
+  // Department Routes
+  app.get("/api/departments", async (req, res) => {
+    const db = await getPool();
+    if (!db) return res.json([]);
+    try {
+      const result = await db.request().query("SELECT * FROM Departments");
+      res.json(result.recordset);
+    } catch (err) {
+      res.status(500).json({ error: "Failed to fetch departments" });
+    }
+  });
+
+  app.post("/api/departments", async (req, res) => {
+    const db = await getPool();
+    if (!db) return res.status(503).json({ error: "DB not connected" });
+    const { id, name, description, color } = req.body;
+    try {
+      if (id) {
+        // Update
+        await db.request()
+          .input("id", sql.NVarChar, id)
+          .input("name", sql.NVarChar, name)
+          .input("desc", sql.NVarChar, description)
+          .input("color", sql.NVarChar, color)
+          .query("UPDATE Departments SET name = @name, description = @desc, color = @color WHERE id = @id");
+      } else {
+        // Create
+        const newId = `dept_${Math.random().toString(36).substr(2, 9)}`;
+        await db.request()
+          .input("id", sql.NVarChar, newId)
+          .input("name", sql.NVarChar, name)
+          .input("desc", sql.NVarChar, description)
+          .input("color", sql.NVarChar, color)
+          .query("INSERT INTO Departments (id, name, description, color) VALUES (@id, @name, @desc, @color)");
+      }
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to save department" });
+    }
+  });
+
+  app.delete("/api/departments/:id", async (req, res) => {
+    const db = await getPool();
+    if (!db) return res.status(503).json({ error: "DB not connected" });
+    const { id } = req.params;
+    try {
+      await db.request().input("id", sql.NVarChar, id).query("DELETE FROM Departments WHERE id = @id");
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to delete department" });
+    }
+  });
+
+  app.get("/api/departments/:id/employees", async (req, res) => {
+    const db = await getPool();
+    if (!db) return res.json([]);
+    const { id } = req.params;
+    try {
+      // Get department name first
+      const deptResult = await db.request().input("id", sql.NVarChar, id).query("SELECT name FROM Departments WHERE id = @id");
+      if (deptResult.recordset.length === 0) return res.status(404).json({ error: "Dept not found" });
+      const deptName = deptResult.recordset[0].name;
+
+      const result = await db.request()
+        .input("dept", sql.NVarChar, deptName)
+        .query("SELECT id, name, username, department, avatar, role FROM Employees WHERE department = @dept");
+      res.json(result.recordset);
+    } catch (err) {
+      res.status(500).json({ error: "Failed to fetch dept employees" });
+    }
+  });
+
   app.post("/api/ai/attendance-summary", async (req, res) => {
     try {
       const apiKey = process.env.GEMINI_API_KEY;
@@ -620,7 +808,7 @@ async function startServer() {
     app.get("*", (req, res) => res.sendFile(path.join(distPath, "index.html")));
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  httpServer.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running at http://0.0.0.0:${PORT}`);
   });
 }
