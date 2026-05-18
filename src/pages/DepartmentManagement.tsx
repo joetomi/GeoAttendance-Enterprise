@@ -242,7 +242,7 @@ export default function DepartmentManagement() {
                   <div className="flex items-center gap-2">
                     <div className="flex -space-x-2">
                        {[1,2,3].map(i => (
-                         <div key={i} className="w-6 h-6 rounded-full bg-surface-container-highest border-2 border-surface-container" />
+                         <div key={i} className="w-6 h-6 rounded-lg bg-surface-container-highest border-2 border-surface-container" />
                        ))}
                     </div>
                     <span className="text-xs font-bold text-primary ml-2">

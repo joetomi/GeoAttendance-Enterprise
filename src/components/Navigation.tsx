@@ -122,7 +122,7 @@ export function MobileMenu({ isOpen, onClose }: { isOpen: boolean; onClose: () =
                   <img 
                     src={user?.avatar || "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=100&h=100&auto=format&fit=crop"} 
                     alt="User" 
-                    className="w-10 h-10 rounded-full border-2 border-secondary-container"
+                    className="w-10 h-10 rounded-xl object-cover border-2 border-secondary-container"
                   />
                   <div className="overflow-hidden">
                     <p className="text-sm font-medium text-white truncate">{user?.name || t.adminSupport}</p>
@@ -254,9 +254,9 @@ export function Sidebar({ className }: SidebarProps) {
           </button>
           <div className="px-6 pb-8 flex items-center gap-3">
             <img 
-              src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=100&h=100&auto=format&fit=crop" 
+              src={user?.avatar || "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=100&h=100&auto=format&fit=crop"} 
               alt="Admin" 
-              className="w-10 h-10 rounded-full border-2 border-secondary-container"
+              className="w-10 h-10 rounded-xl object-cover border-2 border-secondary-container"
             />
             <div className="overflow-hidden">
               <p className="text-sm font-medium text-white truncate">{t.adminSupport}</p>
@@ -467,7 +467,7 @@ export function Header({ title, onMenuClick }: { title: string; onMenuClick?: ()
                                 notif.isRead ? "opacity-60 bg-transparent" : "bg-primary/5 hover:bg-primary/10"
                               )}
                             >
-                              <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center text-primary flex-shrink-0">
+                              <div className="h-10 w-10 rounded-xl bg-primary/20 flex items-center justify-center text-primary flex-shrink-0">
                                 <span className="text-sm font-bold">{notif.employeeName.charAt(0)}</span>
                               </div>
                               <div className="flex-1 min-w-0">

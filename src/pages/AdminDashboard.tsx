@@ -31,8 +31,24 @@ export default function AdminDashboard() {
     password: "", 
     role: "user",
     name: "",
-    department: "Operations" 
+    department: "Operations",
+    avatar: ""
   });
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) { // 2MB limit
+        alert(lang === "ar" ? "حجم الصورة كبير جداً (الأقصى 2 ميجابايت)" : "Image size too large (max 2MB)");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setNewEmployee(prev => ({ ...prev, avatar: reader.result as string }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -98,8 +114,7 @@ export default function AdminDashboard() {
         ...newEmployee, 
         name: newEmployee.name || newEmployee.username, 
         email: `${newEmployee.username}@enterprise.com`, 
-        status: 'Active', 
-        avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=100&h=100&auto=format&fit=crop' 
+        status: 'Active'
       })
     })
       .then(async (res) => {
@@ -114,7 +129,7 @@ export default function AdminDashboard() {
         }
         setShowModal(false);
         setEditingId(null);
-        setNewEmployee({ username: "", password: "", role: "user", name: "", department: "Operations" });
+        setNewEmployee({ username: "", password: "", role: "user", name: "", department: "Operations", avatar: "" });
       })
       .catch(err => {
         alert(err.message);
@@ -131,7 +146,8 @@ export default function AdminDashboard() {
       password: "", // Don't show password for security, only if they want to change it
       role: employee.role,
       name: employee.name,
-      department: employee.department
+      department: employee.department,
+      avatar: employee.avatar
     });
     setShowModal(true);
   };
@@ -358,7 +374,7 @@ export default function AdminDashboard() {
                    ) : (
                      onlineUsers.map(user => (
                        <div key={user.id} className="flex items-center gap-3 bg-surface p-2 pr-4 rounded-2xl border border-outline-variant transition-transform hover:scale-105">
-                         <img src={user.avatar} className="w-8 h-8 rounded-full border border-secondary/30" alt="" />
+                         <img src={user.avatar} className="w-10 h-10 rounded-xl border border-secondary/30 object-cover" alt="" />
                          <div>
                            <p className="text-xs font-bold text-on-surface leading-tight">{user.name}</p>
                            <p className="text-[10px] text-emerald-500 font-bold uppercase tracking-tighter">{t.liveNow}</p>
@@ -412,7 +428,7 @@ export default function AdminDashboard() {
                                 <img 
                                   src={employee.avatar} 
                                   alt={employee.name} 
-                                  className="w-10 h-10 rounded-full object-cover border border-outline-variant"
+                                  className="w-10 h-10 rounded-xl object-cover border border-outline-variant"
                                 />
                                 <div>
                                   <div className="flex items-center gap-2">
@@ -544,7 +560,7 @@ export default function AdminDashboard() {
                           
                           <div className="flex items-center gap-3 mt-1">
                             {log.avatar && (
-                              <img src={log.avatar} className="w-6 h-6 rounded-full border border-outline-variant" alt="" />
+                              <img src={log.avatar} className="w-8 h-8 rounded-lg object-cover border border-outline-variant" alt="" />
                             )}
                             <div>
                               <div className="flex items-center gap-1.5">
@@ -608,6 +624,29 @@ export default function AdminDashboard() {
                   </button>
                 </div>
                 <form onSubmit={handleAddEmployee} className="space-y-4">
+                  <div className="flex flex-col items-center mb-6">
+                    <label className="input-label mb-2 text-center w-full">{lang === "ar" ? "صورة الموظف" : "Employee Photo"}</label>
+                    <label className="relative w-32 h-32 rounded-3xl border-2 border-dashed border-outline-variant hover:border-primary flex items-center justify-center cursor-pointer hover:bg-primary/5 transition-all group overflow-hidden shadow-inner">
+                      <input type="file" className="hidden" accept="image/*" onChange={handleFileChange} />
+                      {newEmployee.avatar ? (
+                        <>
+                          <img src={newEmployee.avatar} className="w-full h-full object-cover" alt="Custom Avatar" />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition-opacity text-white">
+                            <Plus className="w-8 h-8 mb-1" />
+                            <span className="text-[10px] font-bold uppercase tracking-widest">{lang === "ar" ? "تغيير" : "Change"}</span>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="flex flex-col items-center gap-2 text-on-surface-variant group-hover:text-primary">
+                          <div className="w-12 h-12 rounded-2xl bg-surface-container-high flex items-center justify-center border border-outline-variant group-hover:border-primary/30 transition-colors">
+                            <Plus className="w-6 h-6" />
+                          </div>
+                          <span className="text-[10px] font-bold uppercase tracking-widest">{lang === "ar" ? "إضافة من الهاتف" : "Upload From Phone"}</span>
+                        </div>
+                      )}
+                    </label>
+                  </div>
+
                   <div>
                     <label className="input-label">{t.username}</label>
                     <input 
