@@ -19,7 +19,7 @@ export const translations = {
     errorConnection: "Connection error. Please check your network.",
     errorFailed: "Login failed",
     langName: "English",
-    langFlag: "🇬🇧",
+    langFlag: "ENG",
     // Navigation
     navEmployees: "Manage Employees",
     navGeofence: "Geofence Settings",
@@ -134,7 +134,7 @@ export const translations = {
     errorConnection: "خطأ في الاتصال. يرجى التحقق من الشبكة.",
     errorFailed: "فشل تسجيل الدخول",
     langName: "العربية",
-    langFlag: "🇱🇾",
+    langFlag: "AR",
 
     // Navigation
     navEmployees: "إدارة الموظفين",
