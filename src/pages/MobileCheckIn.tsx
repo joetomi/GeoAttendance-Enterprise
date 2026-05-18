@@ -23,26 +23,24 @@ export default function MobileCheckIn() {
     setShowLangMenu(false);
   };
 
+  const fetchStatus = (userId: string) => {
+    fetch(`/api/attendance/status/${userId}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.status) {
+          setCurrentMode(data.status);
+          setInZone(data.status === 'In');
+        }
+      })
+      .catch(err => console.error("Status fetch failed:", err));
+  };
+
   useEffect(() => {
     const savedUser = localStorage.getItem("user");
     if (savedUser) {
       const u = JSON.parse(savedUser);
       setUser(u);
-      
-      // Fetch current status
-      fetch(`/api/attendance/status/${u.id}`)
-        .then(res => {
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          return res.json();
-        })
-        .then(data => {
-          setCurrentMode(data.status || 'Out');
-          if (data.status === 'In') setInZone(true);
-        })
-        .catch(err => {
-          console.error("Status fetch failed:", err);
-          setCurrentMode('Out');
-        });
+      fetchStatus(u.id);
     }
 
     // Fetch Geofence config
@@ -265,6 +263,16 @@ export default function MobileCheckIn() {
                 {currentMode === 'In' ? t.checkInSuccess : t.checkOutSuccess}
               </h3>
               <p className="text-on-surface-variant mt-2 font-mono">{new Date().toLocaleTimeString()}</p>
+              
+              <button 
+                onClick={() => {
+                  setStatus('idle');
+                  if (user) fetchStatus(user.id);
+                }}
+                className="mt-8 px-16 py-4 bg-primary text-white rounded-2xl text-sm font-bold uppercase tracking-[0.2em] shadow-lg shadow-primary/20 hover:scale-105 transition-all active:scale-95"
+              >
+                {lang === "ar" ? "موافق" : "OK"}
+              </button>
             </motion.div>
           )}
 

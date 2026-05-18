@@ -618,15 +618,15 @@ export default function AdminDashboard() {
                     />
                   </div>
                   <div>
-                    <label className="input-label">{t.role}</label>
+                    <label className="input-label">{t.role || (lang === "ar" ? "دور المستخدم" : "User Role")}</label>
                     <select 
-                      className="input-field appearance-none bg-no-repeat bg-right pr-10 rtl:bg-left rtl:pl-10 rtl:pr-4" 
+                      className="input-field appearance-none bg-no-repeat bg-right pr-10 rtl:bg-left rtl:pl-10 rtl:pr-4 text-primary font-bold" 
                       value={newEmployee.role}
                       onChange={(e) => setNewEmployee({ ...newEmployee, role: e.target.value })}
                       style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='currentColor'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundSize: '1.5em' }}
                     >
-                      <option value="user">{lang === "ar" ? "مستخدم عادي" : "Normal User"}</option>
-                      <option value="admin">{lang === "ar" ? "مسؤول النظام" : "System Admin"}</option>
+                      <option value="user" className="text-on-surface">{lang === "ar" ? "مستخدم عادي" : "Normal User"}</option>
+                      <option value="admin" className="text-on-surface">{lang === "ar" ? "مسؤول النظام" : "System Admin"}</option>
                     </select>
                   </div>
                   <div>
@@ -642,15 +642,15 @@ export default function AdminDashboard() {
                   <div>
                     <label className="input-label">{t.department}</label>
                     <select 
-                      className="input-field appearance-none bg-no-repeat bg-right pr-10 rtl:bg-left rtl:pl-10 rtl:pr-4" 
+                      className="input-field appearance-none bg-no-repeat bg-right pr-10 rtl:bg-left rtl:pl-10 rtl:pr-4 text-primary font-bold" 
                       value={newEmployee.department}
                       onChange={(e) => setNewEmployee({ ...newEmployee, department: e.target.value })}
                       style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='currentColor'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundSize: '1.5em' }}
                     >
-                      <option>{lang === "ar" ? "العمليات" : "Operations"}</option>
-                      <option>{lang === "ar" ? "الخدمات اللوجستية" : "Logistics"}</option>
-                      <option>{lang === "ar" ? "الموارد البشرية" : "Human Resources"}</option>
-                      <option>{lang === "ar" ? "الأمن" : "Security"}</option>
+                      <option className="text-on-surface">{lang === "ar" ? "العمليات" : "Operations"}</option>
+                      <option className="text-on-surface">{lang === "ar" ? "الخدمات اللوجستية" : "Logistics"}</option>
+                      <option className="text-on-surface">{lang === "ar" ? "الموارد البشرية" : "Human Resources"}</option>
+                      <option className="text-on-surface">{lang === "ar" ? "الأمن" : "Security"}</option>
                     </select>
                   </div>
                   <button type="submit" className="btn-secondary w-full mt-4">
