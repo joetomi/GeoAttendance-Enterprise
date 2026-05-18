@@ -21,6 +21,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useNotifications } from "../contexts/NotificationContext";
+import { useAuth } from "../contexts/AuthContext";
 import { cn } from "../lib/utils";
 import { translations, Language } from "../constants/translations";
 import { Logo } from "./Logo";
@@ -33,15 +34,14 @@ export function MobileMenu({ isOpen, onClose }: { isOpen: boolean; onClose: () =
   const location = useLocation();
   const navigate = useNavigate();
   const { lang, t } = useLanguage();
+  const { user, logout } = useAuth();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const handleLogout = () => {
-    localStorage.removeItem("user");
+    logout();
     navigate("/");
   };
 
-  const userJson = localStorage.getItem("user");
-  const user = userJson ? JSON.parse(userJson) : null;
   const isAdmin = user?.role === "admin" || user?.role === "ceo";
 
   const navItems = [
@@ -191,15 +191,14 @@ export function Sidebar({ className }: SidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { lang, t } = useLanguage();
+  const { user, logout } = useAuth();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const handleLogout = () => {
-    localStorage.removeItem("user");
+    logout();
     navigate("/");
   };
 
-  const userJson = localStorage.getItem("user");
-  const user = userJson ? JSON.parse(userJson) : null;
   const isAdmin = user?.role === "admin" || user?.role === "ceo";
 
   const navItems = [
@@ -329,12 +328,11 @@ export function Sidebar({ className }: SidebarProps) {
 export function Header({ title, onMenuClick }: { title: string; onMenuClick?: () => void }) {
   const { lang, t, setLanguage } = useLanguage();
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
+  const { user } = useAuth();
   const [showLangMenu, setShowLangMenu] = useState(false);
   const [showNotifMenu, setShowNotifMenu] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
 
-  const userJson = localStorage.getItem("user");
-  const user = userJson ? JSON.parse(userJson) : null;
   const isAdmin = user?.role === "admin" || user?.role === "ceo";
 
   const handleLangChange = (l: Language) => {

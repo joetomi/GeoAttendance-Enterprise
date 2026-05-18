@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { cn } from "@/src/lib/utils";
 import { Language, translations } from "../constants/translations";
 import { useLanguage } from "../contexts/LanguageContext";
+import { useAuth } from "../contexts/AuthContext";
 
 import { Logo } from "../components/Logo";
 
@@ -15,6 +16,7 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const { lang, t, setLanguage } = useLanguage();
+  const { login } = useAuth();
   const [showLangMenu, setShowLangMenu] = useState(false);
   const navigate = useNavigate();
 
@@ -33,7 +35,7 @@ export default function Login() {
       const data = await response.json();
       
       if (response.ok) {
-        localStorage.setItem("user", JSON.stringify(data));
+        login(data);
         if (data.role === "dev") {
           navigate("/developer");
         } else if (data.role === "admin" || data.role === "ceo") {

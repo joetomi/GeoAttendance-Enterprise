@@ -17,6 +17,8 @@ import { IdleTimer } from "./components/IdleTimer";
 import { LanguageProvider } from "./contexts/LanguageContext";
 import { useLanguage } from "./contexts/LanguageContext";
 import { NotificationProvider } from "./contexts/NotificationContext";
+import { AuthProvider } from "./contexts/AuthContext";
+import { ProtectedRoute } from "./components/ProtectedRoute";
 import { cn } from "./lib/utils";
 
 function AppLayout({ children, title }: { children: React.ReactNode; title: string }) {
@@ -43,64 +45,76 @@ function AppLayout({ children, title }: { children: React.ReactNode; title: stri
 export default function App() {
   return (
     <LanguageProvider>
-      <NotificationProvider>
-        <BrowserRouter>
-          <IdleTimer />
-          <Routes>
-          {/* Auth Route */}
-          <Route path="/login" element={<Login />} />
-          
-          {/* Admin Routes */}
-          <Route 
-            path="/admin" 
-            element={
-              <AppLayout title="Employee Management">
-                <AdminDashboard />
-              </AppLayout>
-            } 
-          />
+      <AuthProvider>
+        <NotificationProvider>
+          <BrowserRouter>
+            <IdleTimer />
+            <Routes>
+            {/* Auth Route */}
+            <Route path="/login" element={<Login />} />
+            
+            {/* Admin Routes */}
             <Route 
-            path="/departments" 
-            element={
-              <AppLayout title="Department Management">
-                <DepartmentManagement />
-              </AppLayout>
-            } 
-          />
-          <Route 
-            path="/geofence" 
-            element={
-              <AppLayout title="Geofence Settings">
-                <GeofenceSettings />
-              </AppLayout>
-            } 
-          />
-          <Route 
-            path="/payroll" 
-            element={
-              <AppLayout title="Deductions & Payroll">
-                <PayrollDashboard />
-              </AppLayout>
-            } 
-          />
-          
-          {/* Mobile / Employee Routes */}
-          <Route 
-            path="/check-in" 
-            element={
-              <AppLayout title="Check In">
-                <MobileCheckIn />
-              </AppLayout>
-            } 
-          />
-          
-          {/* Fallback */}
-          <Route path="/developer" element={<DeveloperPanel />} />
-          <Route path="/" element={<Navigate to="/login" replace />} />
-          <Route path="*" element={<Navigate to="/login" replace />} />
-        </Routes>
-      </BrowserRouter>
-      </NotificationProvider>
+              path="/admin" 
+              element={
+                <ProtectedRoute requireAdmin>
+                  <AppLayout title="Employee Management">
+                    <AdminDashboard />
+                  </AppLayout>
+                </ProtectedRoute>
+              } 
+            />
+              <Route 
+              path="/departments" 
+              element={
+                <ProtectedRoute requireAdmin>
+                  <AppLayout title="Department Management">
+                    <DepartmentManagement />
+                  </AppLayout>
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/geofence" 
+              element={
+                <ProtectedRoute requireAdmin>
+                  <AppLayout title="Geofence Settings">
+                    <GeofenceSettings />
+                  </AppLayout>
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/payroll" 
+              element={
+                <ProtectedRoute requireAdmin>
+                  <AppLayout title="Deductions & Payroll">
+                    <PayrollDashboard />
+                  </AppLayout>
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Mobile / Employee Routes */}
+            <Route 
+              path="/check-in" 
+              element={
+                <ProtectedRoute>
+                  <AppLayout title="Check In">
+                    <MobileCheckIn />
+                  </AppLayout>
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Fallback */}
+            <Route path="/developer" element={<DeveloperPanel />} />
+            <Route path="/" element={<Navigate to="/login" replace />} />
+            <Route path="*" element={<Navigate to="/login" replace />} />
+          </Routes>
+        </BrowserRouter>
+        </NotificationProvider>
+      </AuthProvider>
     </LanguageProvider>
   );
 }
