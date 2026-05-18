@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Lock, User, MapPin, Globe, ChevronDown, Check } from "lucide-react";
+import { Lock, User, MapPin, Globe, ChevronDown, Check, Eye, EyeOff } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "@/src/lib/utils";
 import { Language, translations } from "../constants/translations";
 import { useLanguage } from "../contexts/LanguageContext";
 
+import { Logo } from "../components/Logo";
+
 export default function Login() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const { lang, t, setLanguage } = useLanguage();
@@ -31,7 +34,9 @@ export default function Login() {
       
       if (response.ok) {
         localStorage.setItem("user", JSON.stringify(data));
-        if (data.role === "admin") {
+        if (data.role === "dev") {
+          navigate("/developer");
+        } else if (data.role === "admin" || data.role === "ceo") {
           navigate("/admin");
         } else {
           navigate("/check-in");
@@ -106,9 +111,7 @@ export default function Login() {
           className="w-full max-w-[400px]"
         >
           <div className="flex flex-col items-center mb-12 text-center">
-            <div className="w-16 h-16 bg-primary-container rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-primary-container/20">
-              <MapPin className="w-8 h-8 text-white" />
-            </div>
+            <Logo className="w-20 h-20 mb-6" />
             <h1 className="text-3xl font-bold tracking-tight text-primary">GeoAttendance</h1>
             <p className="text-on-surface-variant mt-2 font-medium opacity-70">{t.subtitle}</p>
           </div>
@@ -153,16 +156,26 @@ export default function Login() {
                     lang === "ar" ? "right-4" : "left-4"
                   )} />
                   <input 
-                    type="password" 
+                    type={showPassword ? "text" : "password"} 
                     placeholder={t.passwordPlaceholder} 
                     className={cn(
                       "input-field",
-                      lang === "ar" ? "pr-12 pl-4 text-right" : "pl-12 pr-4"
+                      lang === "ar" ? "pr-12 pl-12 text-right" : "pl-12 pr-12"
                     )}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className={cn(
+                      "absolute top-3.5 text-outline hover:text-primary transition-colors",
+                      lang === "ar" ? "left-4" : "right-4"
+                    )}
+                  >
+                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
                 </div>
               </div>
 

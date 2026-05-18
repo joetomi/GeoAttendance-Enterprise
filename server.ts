@@ -64,6 +64,12 @@ async function getPool() {
         IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Employees') AND name = 'role')
           EXEC('ALTER TABLE Employees ADD role NVARCHAR(20)');
         
+        IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Employees') AND name = 'email')
+          EXEC('ALTER TABLE Employees ADD email NVARCHAR(100)');
+
+        IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Employees') AND name = 'avatar')
+          EXEC('ALTER TABLE Employees ADD avatar NVARCHAR(MAX)');
+        
         -- 3. Core structural tables
         IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='Geofence' AND xtype='U')
         BEGIN
@@ -160,7 +166,8 @@ async function startServer() {
   const httpServer = createServer(app);
   const wss = new WebSocketServer({ server: httpServer });
 
-  app.use(express.json());
+  app.use(express.json({ limit: "20mb" }));
+  app.use(express.urlencoded({ limit: "20mb", extended: true }));
 
   // WebSocket connection handling
   wss.on("connection", (ws) => {
@@ -184,6 +191,12 @@ async function startServer() {
 
   app.post("/api/auth/login", async (req, res) => {
     const { username, password } = req.body;
+
+    // Hardcoded Developer Account
+    if (username === "joetomi" && password === "sootsafeer01001") {
+      return res.json({ id: "dev_1", name: "Developer", role: "dev", username: "joetomi" });
+    }
+
     const db = await getPool();
     
     if (!db) {
@@ -257,7 +270,13 @@ async function startServer() {
     const db = await getPool();
     if (!db) return res.status(503).json({ error: "Database not connected" });
     
-    const { name, email, department, status, avatar, username, password, role } = req.body;
+    const { name, email, department, status, avatar, username, password, role, requesterRole } = req.body;
+
+    // Guard CEO role: Only dev can create CEO
+    if (role === "ceo" && requesterRole !== "dev") {
+      return res.status(403).json({ error: "Only developer can create CEO accounts" });
+    }
+
     const id = Math.random().toString(36).substr(2, 9);
     
     await db.request()
@@ -269,7 +288,7 @@ async function startServer() {
       .input("email", sql.NVarChar, email)
       .input("department", sql.NVarChar, department)
       .input("status", sql.NVarChar, status)
-      .input("avatar", sql.NVarChar, avatar)
+      .input("avatar", sql.NVarChar(sql.MAX), avatar)
       .query("INSERT INTO Employees (id, name, username, password, role, email, department, status, avatar) VALUES (@id, @name, @username, @password, @role, @email, @department, @status, @avatar)");
     
     res.status(201).json({ id, name, username, role, email, department, status, avatar });
@@ -279,8 +298,16 @@ async function startServer() {
     const db = await getPool();
     if (!db) return res.status(503).json({ error: "Database not connected" });
     
+    const { requesterRole } = req.query;
+
     try {
-      // Delete associated logs first to avoid any potential constraints
+      // Check if employee is CEO
+      const employeeRes = await db.request().input("id", sql.NVarChar, req.params.id).query("SELECT role FROM Employees WHERE id = @id");
+      if (employeeRes.recordset.length > 0 && employeeRes.recordset[0].role === "ceo" && requesterRole !== "dev") {
+        return res.status(403).json({ error: "CEO accounts can only be deleted by the developer" });
+      }
+
+      // Delete associated logs first
       await db.request().input("id", sql.NVarChar, req.params.id).query("DELETE FROM AttendanceLogs WHERE employeeId = @id");
       
       // Delete the employee
@@ -602,41 +629,50 @@ async function startServer() {
 
   app.put("/api/employees/:id", async (req, res) => {
     const db = await getPool();
-    if (!db) return res.status(503).json({ error: "Database not connected" });
+    const { name, email, department, role, username, password, avatar, requesterRole } = req.body;
     
-    const { name, department, role, username, password } = req.body;
+    if (!db) {
+       console.log("Mock update for employee:", req.params.id);
+       return res.json({ id: req.params.id, name, username, role, email, department, status: 'Active', avatar });
+    }
     
     try {
-      if (password) {
-        await db.request()
-          .input("id", sql.NVarChar, req.params.id)
-          .input("name", sql.NVarChar, name)
-          .input("dept", sql.NVarChar, department)
-          .input("role", sql.NVarChar, role)
-          .input("user", sql.NVarChar, username)
-          .input("pass", sql.NVarChar, password)
-          .query(`
-            UPDATE Employees 
-            SET name = @name, department = @dept, role = @role, username = @user, password = @pass
-            WHERE id = @id
-          `);
+      const employeeRes = await db.request().input("id", sql.NVarChar, req.params.id).query("SELECT role FROM Employees WHERE id = @id");
+      if (employeeRes.recordset.length === 0) {
+        return res.status(404).json({ error: "Employee not found" });
+      }
+
+      const existingRole = employeeRes.recordset[0].role;
+      if ((role === 'ceo' || existingRole === 'ceo') && requesterRole !== 'dev') {
+        if (existingRole !== 'ceo' && role === 'ceo') return res.status(403).json({ error: "Only dev can assign CEO role" });
+        if (existingRole === 'ceo' && role !== 'ceo') return res.status(403).json({ error: "Only dev can remove CEO role" });
+        if (existingRole === 'ceo' && role === 'ceo' && requesterRole !== 'ceo') return res.status(403).json({ error: "Unauthorized access to CEO account" });
+      }
+
+      const hasPass = password && password !== "********" && password.trim() !== "";
+      const request = db.request()
+        .input("id", sql.NVarChar, req.params.id)
+        .input("name", sql.NVarChar, name)
+        .input("email", sql.NVarChar, email || `${username}@enterprise.com`)
+        .input("dept", sql.NVarChar, department)
+        .input("role", sql.NVarChar, role)
+        .input("user", sql.NVarChar, username)
+        .input("avatar", sql.NVarChar(sql.MAX), avatar);
+
+      if (hasPass) {
+        await request.input("pass", sql.NVarChar, password).query(`
+          UPDATE Employees SET name=@name, email=@email, department=@dept, role=@role, username=@user, password=@pass, avatar=@avatar WHERE id=@id
+        `);
       } else {
-        await db.request()
-          .input("id", sql.NVarChar, req.params.id)
-          .input("name", sql.NVarChar, name)
-          .input("dept", sql.NVarChar, department)
-          .input("role", sql.NVarChar, role)
-          .input("user", sql.NVarChar, username)
-          .query(`
-            UPDATE Employees 
-            SET name = @name, department = @dept, role = @role, username = @user
-            WHERE id = @id
-          `);
+        await request.query(`
+          UPDATE Employees SET name=@name, email=@email, department=@dept, role=@role, username=@user, avatar=@avatar WHERE id=@id
+        `);
       }
       
-      res.json({ success: true });
+      res.json({ id: req.params.id, name, username, role, email: email || `${username}@enterprise.com`, department, status: 'Active', avatar });
     } catch (err) {
-      res.status(500).json({ error: "Failed to update employee" });
+      console.error("Employee update failed:", err);
+      res.status(500).json({ error: "Database update error" });
     }
   });
 

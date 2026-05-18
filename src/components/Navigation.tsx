@@ -23,6 +23,7 @@ import { useLanguage } from "../contexts/LanguageContext";
 import { useNotifications } from "../contexts/NotificationContext";
 import { cn } from "../lib/utils";
 import { translations, Language } from "../constants/translations";
+import { Logo } from "./Logo";
 
 interface SidebarProps {
   className?: string;
@@ -41,7 +42,7 @@ export function MobileMenu({ isOpen, onClose }: { isOpen: boolean; onClose: () =
 
   const userJson = localStorage.getItem("user");
   const user = userJson ? JSON.parse(userJson) : null;
-  const isAdmin = user?.role === "admin";
+  const isAdmin = user?.role === "admin" || user?.role === "ceo";
 
   const navItems = [
     ...(isAdmin ? [
@@ -77,11 +78,14 @@ export function MobileMenu({ isOpen, onClose }: { isOpen: boolean; onClose: () =
               )}
             >
               <div className="px-6 py-8 flex justify-between items-center">
-                <div>
-                  <h1 className="text-xl text-white font-bold tracking-tight">GeoAttendance</h1>
-                  <p className="text-xs text-on-primary-container mt-1 uppercase tracking-widest font-medium opacity-70">
-                    {isAdmin ? (lang === "ar" ? "إدارة المؤسسة" : "Enterprise Admin") : (lang === "ar" ? "بوابة الموظف" : "Employee Portal")}
-                  </p>
+                <div className="flex items-center gap-3">
+                  <Logo className="w-10 h-10 text-emerald-400" />
+                  <div>
+                    <h1 className="text-xl text-white font-bold tracking-tight">GeoAttendance</h1>
+                    <p className="text-xs text-on-primary-container mt-1 uppercase tracking-widest font-medium opacity-70">
+                      {isAdmin ? (lang === "ar" ? "إدارة المؤسسة" : "Enterprise Admin") : (lang === "ar" ? "بوابة الموظف" : "Employee Portal")}
+                    </p>
+                  </div>
                 </div>
                 <button onClick={onClose} className="p-2 text-white/50 hover:text-white transition-colors">
                   <X className="w-6 h-6" />
@@ -196,7 +200,7 @@ export function Sidebar({ className }: SidebarProps) {
 
   const userJson = localStorage.getItem("user");
   const user = userJson ? JSON.parse(userJson) : null;
-  const isAdmin = user?.role === "admin";
+  const isAdmin = user?.role === "admin" || user?.role === "ceo";
 
   const navItems = [
     ...(isAdmin ? [
@@ -216,11 +220,14 @@ export function Sidebar({ className }: SidebarProps) {
         lang === "ar" ? "right-0 border-l border-white/10" : "left-0 border-r border-white/10",
         className
       )}>
-        <div className="px-6 py-8">
-          <h1 className="text-xl text-white font-bold tracking-tight">GeoAttendance</h1>
-          <p className="text-xs text-on-primary-container mt-1 uppercase tracking-widest font-medium opacity-70">
-            {lang === "ar" ? "إدارة المؤسسة" : "Enterprise Admin"}
-          </p>
+        <div className="px-6 py-8 flex items-center gap-3">
+          <Logo className="w-10 h-10 text-emerald-400" />
+          <div>
+            <h1 className="text-xl text-white font-bold tracking-tight">GeoAttendance</h1>
+            <p className="text-xs text-on-primary-container mt-1 uppercase tracking-widest font-medium opacity-70">
+              {lang === "ar" ? "إدارة المؤسسة" : "Enterprise Admin"}
+            </p>
+          </div>
         </div>
 
         <nav className="flex-1 flex flex-col mt-4">
@@ -259,7 +266,7 @@ export function Sidebar({ className }: SidebarProps) {
               className="w-10 h-10 rounded-xl object-cover border-2 border-secondary-container"
             />
             <div className="overflow-hidden">
-              <p className="text-sm font-medium text-white truncate">{t.adminSupport}</p>
+              <p className="text-sm font-medium text-white truncate">{user?.name || t.adminSupport}</p>
               <a 
                 href="https://wa.me/218910078707" 
                 target="_blank" 
@@ -328,7 +335,7 @@ export function Header({ title, onMenuClick }: { title: string; onMenuClick?: ()
 
   const userJson = localStorage.getItem("user");
   const user = userJson ? JSON.parse(userJson) : null;
-  const isAdmin = user?.role === "admin";
+  const isAdmin = user?.role === "admin" || user?.role === "ceo";
 
   const handleLangChange = (l: Language) => {
     setLanguage(l);
@@ -535,16 +542,8 @@ export function Header({ title, onMenuClick }: { title: string; onMenuClick?: ()
               </button>
 
               <div className="mb-8">
-                <div className="w-24 h-24 bg-white/5 rounded-3xl flex items-center justify-center mx-auto mb-6 p-4 border border-outline-variant/30">
-                  <img 
-                    src="/joe_logo.png" 
-                    alt="joe.co logo" 
-                    className="w-full h-full object-contain"
-                    onError={(e) => {
-                      // Fallback if logo doesn't exist
-                      (e.target as HTMLImageElement).src = "https://ui-avatars.com/api/?name=Joe+Co&background=10B981&color=fff";
-                    }}
-                  />
+                <div className="w-24 h-24 bg-white/5 rounded-3xl flex items-center justify-center mx-auto mb-6 p-4 border border-outline-variant/30 text-emerald-500">
+                  <Logo className="w-full h-full" />
                 </div>
                 <h3 className="text-2xl font-bold text-on-surface">{t.aboutTitle}</h3>
                 <p className="text-sm text-primary font-bold uppercase tracking-widest mt-1">

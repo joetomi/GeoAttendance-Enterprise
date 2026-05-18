@@ -11,7 +11,9 @@ import GeofenceSettings from "./pages/GeofenceSettings";
 import PayrollDashboard from "./pages/PayrollDashboard";
 import MobileCheckIn from "./pages/MobileCheckIn";
 import DepartmentManagement from "./pages/DepartmentManagement";
+import DeveloperPanel from "./pages/DeveloperPanel";
 import { Sidebar, Header, MobileMenu } from "./components/Navigation";
+import { IdleTimer } from "./components/IdleTimer";
 import { LanguageProvider } from "./contexts/LanguageContext";
 import { useLanguage } from "./contexts/LanguageContext";
 import { NotificationProvider } from "./contexts/NotificationContext";
@@ -43,6 +45,7 @@ export default function App() {
     <LanguageProvider>
       <NotificationProvider>
         <BrowserRouter>
+          <IdleTimer />
           <Routes>
           {/* Auth Route */}
           <Route path="/login" element={<Login />} />
@@ -92,6 +95,7 @@ export default function App() {
           />
           
           {/* Fallback */}
+          <Route path="/developer" element={<DeveloperPanel />} />
           <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>

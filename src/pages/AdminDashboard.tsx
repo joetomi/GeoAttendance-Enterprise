@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Plus, Trash2, MoreVertical, ShieldCheck, UserMinus, Users, ChevronLeft, ChevronRight, X, Edit3, Download, FileSpreadsheet } from "lucide-react";
+import { Plus, Trash2, MoreVertical, ShieldCheck, UserMinus, Users, ChevronLeft, ChevronRight, X, Edit3, Download, FileSpreadsheet, Eye, EyeOff } from "lucide-react";
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
 import { Employee } from "../types";
@@ -10,6 +10,7 @@ import { Language, translations } from "../constants/translations";
 import { useLanguage } from "../contexts/LanguageContext";
 
 export default function AdminDashboard() {
+  const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [departments, setDepartments] = useState<any[]>([]);
   const [attendance, setAttendance] = useState<any[]>([]);
@@ -23,6 +24,7 @@ export default function AdminDashboard() {
   const [showModal, setShowModal] = useState(false);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
   const [filterStartDate, setFilterStartDate] = useState(new Date().toISOString().split('T')[0]);
   const [filterEndDate, setFilterEndDate] = useState(new Date().toISOString().split('T')[0]);
   const [filterEmployeeId, setFilterEmployeeId] = useState("all");
@@ -63,7 +65,8 @@ export default function AdminDashboard() {
 
         if (empRes && empRes.ok) {
           const data = await empRes.json();
-          setEmployees(Array.isArray(data) ? data : []);
+          // Hide CEO accounts from standard admins, CEOs see everyone
+          setEmployees(Array.isArray(data) ? data.filter((e: Employee) => ['ceo', 'dev'].includes(currentUser.role) || e.role !== "ceo") : []);
         }
 
         if (deptRes && deptRes.ok) {
@@ -102,11 +105,21 @@ export default function AdminDashboard() {
 
   const handleAddEmployee = (e: React.FormEvent) => {
     e.preventDefault();
+
     setLoading(true);
     
     const method = editingId ? "PUT" : "POST";
     const endpoint = editingId ? `/api/employees/${editingId}` : "/api/employees";
     
+    const currentRequester = JSON.parse(localStorage.getItem("user") || "{}");
+    
+    // Safety check for role creation
+    if (!editingId && newEmployee.role === 'ceo' && currentRequester.role !== 'dev') {
+      alert(lang === "ar" ? "لا يسمح إلا للمطور بإنشاء دور المدير التنفيذي" : "Only developers are allowed to create a CEO role");
+      setLoading(false);
+      return;
+    }
+
     fetch(endpoint, {
       method: method,
       headers: { "Content-Type": "application/json" },
@@ -114,25 +127,41 @@ export default function AdminDashboard() {
         ...newEmployee, 
         name: newEmployee.name || newEmployee.username, 
         email: `${newEmployee.username}@enterprise.com`, 
-        status: 'Active'
+        status: 'Active',
+        requesterRole: currentRequester.role
       })
     })
       .then(async (res) => {
-        if (!res.ok) throw new Error(`Failed to ${editingId ? 'update' : 'add'} employee`);
-        return res.json();
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(data.error || `Failed to ${editingId ? 'update' : 'add'} employee`);
+        }
+        return data;
       })
       .then(data => {
         if (editingId) {
-          setEmployees(prev => prev.map(em => em.id === editingId ? { ...em, ...newEmployee, name: newEmployee.name || newEmployee.username } : em));
+          // Use data from server for persistence confirmation
+          setEmployees(prev => prev.map(em => em.id === editingId ? data : em));
+
+          // Update local storage if current user edited themselves
+          if (editingId === currentRequester.id) {
+            localStorage.setItem("user", JSON.stringify(data));
+            alert(lang === "ar" ? "تم تحديث هويتك بنجاح! سيتم إعادة تحميل الصفحة." : "Identity updated successfully! Page will reload.");
+            setTimeout(() => window.location.reload(), 500);
+          } else {
+            alert(lang === "ar" ? "تم حفظ التغييرات بنجاح!" : "Changes saved successfully!");
+          }
         } else {
           setEmployees(prev => [...prev, data]);
+          alert(lang === "ar" ? "تم إضافة الموظف بنجاح!" : "Employee added successfully!");
         }
         setShowModal(false);
         setEditingId(null);
         setNewEmployee({ username: "", password: "", role: "user", name: "", department: "Operations", avatar: "" });
       })
       .catch(err => {
-        alert(err.message);
+        console.error("Operation failed:", err);
+        alert(`${lang === "ar" ? "خطأ:" : "Error:"} ${err.message}`);
       })
       .finally(() => {
         setLoading(false);
@@ -143,11 +172,11 @@ export default function AdminDashboard() {
     setEditingId(employee.id);
     setNewEmployee({
       username: employee.username,
-      password: "", // Don't show password for security, only if they want to change it
+      password: "********", 
       role: employee.role,
       name: employee.name,
-      department: employee.department,
-      avatar: employee.avatar
+      department: employee.department || "Operations",
+      avatar: employee.avatar || ""
     });
     setShowModal(true);
   };
@@ -169,7 +198,8 @@ export default function AdminDashboard() {
     
     setLoading(true);
     try {
-      const res = await fetch(`/api/employees/${confirmingDeleteId}`, { method: "DELETE" });
+      const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
+      const res = await fetch(`/api/employees/${confirmingDeleteId}?requesterRole=${currentUser.role}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Delete failed on server");
       
       const id = confirmingDeleteId;
@@ -334,8 +364,6 @@ export default function AdminDashboard() {
     }
   };
 
-  const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
-
   return (
     <div className="min-h-screen bg-surface bg-stars" dir={lang === "ar" ? "rtl" : "ltr"}>
       
@@ -373,9 +401,9 @@ export default function AdminDashboard() {
                      <p className="text-xs text-on-surface-variant opacity-60 italic">{t.noPersonnel}</p>
                    ) : (
                      onlineUsers.map(user => (
-                       <div key={user.id} className="flex items-center gap-3 bg-surface p-2 pr-4 rounded-2xl border border-outline-variant transition-transform hover:scale-105">
-                         <img src={user.avatar} className="w-10 h-10 rounded-xl border border-secondary/30 object-cover" alt="" />
-                         <div>
+                        <div key={user.id} className="flex items-center gap-3 bg-surface p-2 pr-4 rounded-2xl border border-outline-variant transition-transform hover:scale-105">
+                          <img src={user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random`} className="w-10 h-10 rounded-xl border border-secondary/30 object-cover" alt="" />
+                          <div>
                            <p className="text-xs font-bold text-on-surface leading-tight">{user.name}</p>
                            <p className="text-[10px] text-emerald-500 font-bold uppercase tracking-tighter">{t.liveNow}</p>
                          </div>
@@ -395,7 +423,7 @@ export default function AdminDashboard() {
                   <h3 className="text-2xl font-bold text-on-surface tracking-tight">{t.navEmployees}</h3>
                   <p className="text-sm text-on-surface-variant">{lang === "ar" ? "إدارة وتفويض موظفي الشركة." : "Manage and authorize corporate staff."}</p>
                 </div>
-                <button id="add-employee-btn" onClick={() => setShowModal(true)} className="btn-primary">
+                <button id="add-employee-btn" onClick={() => { setEditingId(null); setNewEmployee({ username: "", password: "", role: "user", name: "", department: "Operations", avatar: "" }); setShowModal(true); }} className="btn-primary">
                   <Plus className="w-5 h-5" />
                   {lang === "ar" ? "إضافة موظف" : "Add Employee"}
                 </button>
@@ -426,7 +454,7 @@ export default function AdminDashboard() {
                             <td className="px-6 py-4">
                               <div className="flex items-center gap-3">
                                 <img 
-                                  src={employee.avatar} 
+                                  src={employee.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(employee.name)}&background=random`} 
                                   alt={employee.name} 
                                   className="w-10 h-10 rounded-xl object-cover border border-outline-variant"
                                 />
@@ -559,9 +587,7 @@ export default function AdminDashboard() {
                           </div>
                           
                           <div className="flex items-center gap-3 mt-1">
-                            {log.avatar && (
-                              <img src={log.avatar} className="w-8 h-8 rounded-lg object-cover border border-outline-variant" alt="" />
-                            )}
+                            <img src={log.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(log.employeeName || 'U')}&background=random`} className="w-8 h-8 rounded-lg object-cover border border-outline-variant" alt="" />
                             <div>
                               <div className="flex items-center gap-1.5">
                                 <p className="text-sm font-bold text-on-surface">{log.employeeName || 'Unknown Employee'}</p>
@@ -653,30 +679,51 @@ export default function AdminDashboard() {
                       type="text" 
                       className="input-field" 
                       value={newEmployee.username}
-                      onChange={(e) => setNewEmployee({ ...newEmployee, username: e.target.value })}
+                      onChange={(e) => setNewEmployee(prev => ({ ...prev, username: e.target.value }))}
                       required 
                     />
                   </div>
                   <div>
                     <label className="input-label">{t.password} {editingId && <span className="text-[10px] text-on-surface-variant opacity-60">({lang === "ar" ? "اتركه فارغاً للاحتفاظ بالحالي" : "Leave blank to keep current"})</span>}</label>
-                    <input 
-                      type="password" 
-                      className="input-field" 
-                      value={newEmployee.password}
-                      onChange={(e) => setNewEmployee({ ...newEmployee, password: e.target.value })}
-                      required={!editingId} 
-                    />
+                    <div className="relative">
+                      <input 
+                        type={showPassword ? "text" : "password"} 
+                        className={cn(
+                          "input-field",
+                          lang === "ar" ? "pl-10" : "pr-10"
+                        )}
+                        value={newEmployee.password}
+                        onChange={(e) => setNewEmployee(prev => ({ ...prev, password: e.target.value }))}
+                        required={!editingId} 
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className={cn(
+                          "absolute top-3 text-on-surface-variant hover:text-primary transition-colors",
+                          lang === "ar" ? "left-3" : "right-3"
+                        )}
+                      >
+                        {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                      </button>
+                    </div>
                   </div>
                   <div>
                     <label className="input-label">{t.role || (lang === "ar" ? "دور المستخدم" : "User Role")}</label>
                     <select 
                       className="input-field appearance-none bg-no-repeat bg-right pr-10 rtl:bg-left rtl:pl-10 rtl:pr-4 text-primary font-bold" 
                       value={newEmployee.role}
-                      onChange={(e) => setNewEmployee({ ...newEmployee, role: e.target.value })}
+                      onChange={(e) => setNewEmployee(prev => ({ ...prev, role: e.target.value as Employee['role'] }))}
                       style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='currentColor'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundSize: '1.5em' }}
                     >
                       <option value="user" className="text-on-surface">{lang === "ar" ? "مستخدم عادي" : "Normal User"}</option>
                       <option value="admin" className="text-on-surface">{lang === "ar" ? "مسؤول النظام" : "System Admin"}</option>
+                      {currentUser.role === 'dev' && (
+                        <option value="ceo" className="text-on-surface">CEO</option>
+                      )}
+                      {currentUser.role === 'dev' && (
+                        <option value="dev" className="text-on-surface">Developer</option>
+                      )}
                     </select>
                   </div>
                   <div>
@@ -685,7 +732,7 @@ export default function AdminDashboard() {
                       type="text" 
                       className="input-field" 
                       value={newEmployee.name}
-                      onChange={(e) => setNewEmployee({ ...newEmployee, name: e.target.value })}
+                      onChange={(e) => setNewEmployee(prev => ({ ...prev, name: e.target.value }))}
                       required
                     />
                   </div>
@@ -694,7 +741,7 @@ export default function AdminDashboard() {
                     <select 
                       className="input-field appearance-none bg-no-repeat bg-right pr-10 rtl:bg-left rtl:pl-10 rtl:pr-4 text-primary font-bold" 
                       value={newEmployee.department}
-                      onChange={(e) => setNewEmployee({ ...newEmployee, department: e.target.value })}
+                      onChange={(e) => setNewEmployee(prev => ({ ...prev, department: e.target.value }))}
                       style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='currentColor'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundSize: '1.5em' }}
                     >
                       {departments.length === 0 ? (
@@ -706,8 +753,29 @@ export default function AdminDashboard() {
                       )}
                     </select>
                   </div>
-                  <button type="submit" className="btn-secondary w-full mt-4">
-                    {editingId ? t.updateIdentity : t.createIdentity}
+                  <button 
+                    id="submit-identity-btn"
+                    type="submit" 
+                    disabled={loading} 
+                    className={cn(
+                      "w-full mt-6 py-4 px-6 rounded-xl font-bold uppercase tracking-widest text-sm transition-all duration-300 shadow-xl",
+                      "flex items-center justify-center gap-3",
+                      loading 
+                        ? "bg-outline-variant text-on-surface-variant cursor-wait" 
+                        : "bg-emerald-600 text-white hover:bg-emerald-700 hover:shadow-emerald-500/20 active:scale-[0.98] cursor-pointer"
+                    )}
+                  >
+                    {loading ? (
+                      <>
+                        <div className="w-5 h-5 border-3 border-white/30 border-t-white rounded-full animate-spin" />
+                        <span>{lang === "ar" ? "جاري الحفظ..." : "Processing..."}</span>
+                      </>
+                    ) : (
+                      <>
+                        <ShieldCheck className="w-5 h-5" />
+                        <span>{editingId ? (lang === "ar" ? "حفظ التغييرات" : "Save Changes") : (lang === "ar" ? "إنشاء هوية" : "Create Identity")}</span>
+                      </>
+                    )}
                   </button>
                 </form>
               </div>
