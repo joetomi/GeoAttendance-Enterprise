@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import { useLanguage } from './LanguageContext';
+import { useAuth } from './AuthContext';
 
 export interface Notification {
   id: string;
@@ -24,8 +25,12 @@ const NotificationContext = createContext<NotificationContextType | undefined>(u
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const { lang } = useLanguage();
+  const { user } = useAuth();
+
+  const isAdmin = user?.role === "admin" || user?.role === "ceo";
 
   const fetchNotifications = useCallback(async () => {
+    if (!isAdmin) return;
     try {
       const response = await fetch('/api/notifications');
       if (response.ok) {
@@ -35,9 +40,14 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     } catch (err) {
       console.error('Failed to fetch notifications:', err);
     }
-  }, []);
+  }, [isAdmin]);
 
   useEffect(() => {
+    if (!isAdmin) {
+      setNotifications([]);
+      return;
+    }
+
     fetchNotifications();
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -93,7 +103,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     };
 
     return () => socket.close();
-  }, [fetchNotifications, lang]);
+  }, [fetchNotifications, lang, isAdmin]);
 
   const markAsRead = async (id: string) => {
     try {
