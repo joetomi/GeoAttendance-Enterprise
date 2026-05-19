@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Plus, Trash2, MoreVertical, ShieldCheck, UserMinus, Users, ChevronLeft, ChevronRight, X, Edit3, Download, FileSpreadsheet, Eye, EyeOff } from "lucide-react";
+import { Plus, Trash2, MoreVertical, ShieldCheck, UserMinus, Users, ChevronLeft, ChevronRight, X, Edit3, Download, FileSpreadsheet, Eye, EyeOff, RefreshCcw } from "lucide-react";
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
 import { Employee } from "../types";
@@ -36,6 +36,42 @@ export default function AdminDashboard() {
     department: "Operations",
     avatar: ""
   });
+
+  const refreshAttendance = async () => {
+    try {
+      setLoading(true);
+      const [empRes, attRes, onlineRes, statsRes] = await Promise.all([
+        fetch("/api/employees").catch(() => null),
+        fetch("/api/attendance").catch(() => null),
+        fetch("/api/employees/online").catch(() => null),
+        fetch("/api/stats").catch(() => null)
+      ]);
+
+      if (empRes && empRes.ok) {
+        const data = await empRes.json();
+        setEmployees(Array.isArray(data) ? data.filter((e: Employee) => ['ceo', 'dev'].includes(currentUser.role) || e.role !== "ceo") : []);
+      }
+
+      if (attRes && attRes.ok) {
+        const data = await attRes.json();
+        setAttendance(Array.isArray(data) ? data : []);
+      }
+
+      if (onlineRes && onlineRes.ok) {
+        const data = await onlineRes.json();
+        setOnlineUsers(Array.isArray(data) ? data : []);
+      }
+
+      if (statsRes && statsRes.ok) {
+        const data = await statsRes.json();
+        setStats(data);
+      }
+    } catch (err) {
+      console.error("Dashboard refresh failed:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -509,9 +545,19 @@ export default function AdminDashboard() {
             {/* Right Column: Attendance Logs */}
             <div className="xl:col-span-1">
               <div className="flex flex-col gap-6 mb-8">
-                <div>
-                  <h3 className="text-2xl font-bold text-on-surface tracking-tight">{t.activityLogs}</h3>
-                  <p className="text-sm text-on-surface-variant">{t.activitySub}</p>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-2xl font-bold text-on-surface tracking-tight">{t.activityLogs}</h3>
+                    <p className="text-sm text-on-surface-variant">{t.activitySub}</p>
+                  </div>
+                  <button 
+                    onClick={refreshAttendance}
+                    disabled={loading}
+                    className="p-2 text-on-surface-variant hover:text-primary hover:bg-primary/10 rounded-xl transition-all active:scale-95 disabled:opacity-50 group"
+                    title={lang === "ar" ? "تحديث السجلات" : "Refresh Logs"}
+                  >
+                    <RefreshCcw className={cn("w-5 h-5", loading && "animate-spin")} />
+                  </button>
                 </div>
 
                 <div className="card p-4 bg-surface-container-high border border-outline-variant/30 bg-pattern-wavy">

@@ -20,7 +20,7 @@ const dbConfig: sql.config = {
   server: process.env.DB_SERVER || "SQL1004.site4now.net",
   database: process.env.DB_NAME || "db_ac972b_attendance",
   user: process.env.DB_USER || "db_ac972b_attendance_admin",
-  password: process.env.DB_PASSWORD,
+  password: process.env.DB_PASSWORD || "ghmS4fkiqd@seaU",
   options: {
     encrypt: true,
     trustServerCertificate: true,
