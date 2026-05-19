@@ -12,7 +12,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import { createServer } from "http";
 import { Building2 } from "lucide-react";
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 const isProd = process.env.NODE_ENV === "production";
 
 // Database Configuration
@@ -844,9 +844,15 @@ async function startServer() {
     app.get("*", (req, res) => res.sendFile(path.join(distPath, "index.html")));
   }
 
-  httpServer.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running at http://0.0.0.0:${PORT}`);
-  });
+  if (typeof PORT === "string" && PORT.startsWith("\\\\.\\pipe\\")) {
+    httpServer.listen(PORT, () => {
+      console.log(`Server listening on IIS named pipe: ${PORT}`);
+    });
+  } else {
+    httpServer.listen(Number(PORT), "0.0.0.0", () => {
+      console.log(`Server running at http://0.0.0.0:${PORT}`);
+    });
+  }
 }
 
 startServer();
