@@ -7,6 +7,7 @@ import { Header } from "../components/Navigation";
 import { GeofenceMap } from "../components/GeofenceMap";
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
 
 import { Language, translations } from "../constants/translations";
 import { useLanguage } from "../contexts/LanguageContext";
@@ -44,6 +45,25 @@ export default function GeofenceSettings() {
       });
   }, [user, navigate]);
 
+  const detectLocation = () => {
+    if (!navigator.geolocation) {
+      alert(lang === "ar" ? "المتصفح لا يدعم تحديد الموقع." : "Geolocation is not supported by your browser.");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setGeofence(prev => prev ? {
+          ...prev,
+          latitude: parseFloat(position.coords.latitude.toFixed(6)),
+          longitude: parseFloat(position.coords.longitude.toFixed(6))
+        } : null);
+      },
+      (err) => {
+        alert(lang === "ar" ? "فشل تحديد الموقع. يرجى السماح بالوصول للموقع." : "Failed to obtain location. Please grant permission.");
+      }
+    );
+  };
+
   const handleSave = () => {
     if (!geofence) return;
     setSaving(true);
@@ -54,10 +74,12 @@ export default function GeofenceSettings() {
     })
       .then(async (res) => {
         if (!res.ok) throw new Error("Update failed");
-        alert("Configuration updated successfully");
+        const msg = lang === "ar" ? "تم التحديث بنجاح" : "Configuration updated successfully";
+        toast.success(msg);
       })
       .catch(err => {
-        alert(err.message);
+        const errorMsg = lang === "ar" ? "فشل التحديث" : err.message;
+        toast.error(errorMsg);
       })
       .finally(() => {
         setSaving(false);
@@ -117,6 +139,15 @@ export default function GeofenceSettings() {
                     </div>
                   </div>
                 </div>
+
+                <button
+                  type="button"
+                  onClick={detectLocation}
+                  className="w-full py-3 px-4 bg-secondary-container hover:bg-secondary-container/80 text-on-secondary-container border border-outline-variant hover:shadow-lg hover:shadow-secondary/5 transition-all duration-300 rounded-xl flex items-center justify-center gap-2 text-xs font-bold font-sans cursor-pointer"
+                >
+                  <MapPin className="w-4 h-4 animate-pulse text-secondary" />
+                  {lang === "ar" ? "حدد موقعي تلقائي" : "Auto Detect Location"}
+                </button>
 
                 <div>
                   <label className="input-label">{t.radius}</label>

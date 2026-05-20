@@ -35,7 +35,15 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       const response = await fetch('/api/notifications');
       if (response.ok) {
         const data = await response.json();
-        setNotifications(data);
+        // Remove duplicates if any
+        if (Array.isArray(data)) {
+          const unique = data.filter((item: any, index: number, self: any[]) =>
+            self.findIndex((t) => t.id === item.id) === index
+          );
+          setNotifications(unique);
+        } else {
+          setNotifications([]);
+        }
       }
     } catch (err) {
       console.error('Failed to fetch notifications:', err);
@@ -59,7 +67,12 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         const data = JSON.parse(event.data);
         if (data.type === 'notification') {
           const newNotif = data.payload;
-          setNotifications(prev => [newNotif, ...prev]);
+          setNotifications(prev => {
+            if (prev.some(notif => notif.id === newNotif.id)) {
+              return prev;
+            }
+            return [newNotif, ...prev];
+          });
           
           // Show toast
           toast.custom((t) => (

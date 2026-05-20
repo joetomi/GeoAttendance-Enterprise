@@ -67,7 +67,7 @@ export function GeofenceMap({ geofence, onUpdate }: GeofenceMapProps) {
         <span className="text-xs font-bold uppercase tracking-wider text-on-surface">Active Fence: {geofence.name}</span>
       </div>
       
-      <div className="absolute top-4 left-4 flex flex-col gap-2 z-20">
+      <div className="absolute bottom-4 left-4 flex flex-col gap-2 z-20">
         <div className="bg-white/90 backdrop-blur-sm px-3 py-2 rounded-lg border border-outline-variant shadow-lg flex items-center gap-2">
           <MapPin className="w-4 h-4 text-secondary" />
           <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface">Interactive Mode</span>

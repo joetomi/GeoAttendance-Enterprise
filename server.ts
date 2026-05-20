@@ -133,8 +133,10 @@ async function getPool() {
         END
 
         -- 4. Initialize Data
-        IF NOT EXISTS (SELECT * FROM Geofence)
-          INSERT INTO Geofence (latitude, longitude, radius, name, startTime, endTime) VALUES (34.0522, -118.2437, 200, 'HQ Main Entrance', '08:00', '17:00');
+        EXEC('
+          IF NOT EXISTS (SELECT * FROM Geofence)
+            INSERT INTO Geofence (latitude, longitude, radius, name, startTime, endTime) VALUES (34.0522, -118.2437, 200, ''HQ Main Entrance'', ''08:00'', ''17:00'');
+        ');
 
         -- Use dynamic SQL to check and insert admin to avoid "Invalid column name 'role'" during batch compile
         EXEC('
