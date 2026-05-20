@@ -23,7 +23,7 @@ export const translations = {
     // Navigation
     navEmployees: "Manage Employees",
     navGeofence: "Geofence Settings",
-    navPayroll: "Deductions & Payroll",
+    navPayroll: "HR Management",
     navDepartments: "Departments",
     logout: "Logout",
     logoutConfirm: "Are you sure you want to log out?",
@@ -77,10 +77,10 @@ export const translations = {
     goodMorning: "Good Morning",
     goodAfternoon: "Good Afternoon",
     welcomeUser: "Welcome",
-
-    // Payroll
-    payrollTitle: "Deductions & Payroll",
-    payrollSub: "Configure individual salary structures and automated deduction logic.",
+    
+    // Payroll & HR
+    payrollTitle: "HR & Talent Portal",
+    payrollSub: "Control corporate payroll parameters, leaves, evaluations, custody assets, and warnings.",
     baseSalary: "Base Monthly Salary",
     gracePeriod: "Grace Period (Minutes)",
     weekends: "Holiday Settings",
@@ -146,7 +146,7 @@ export const translations = {
     // Navigation
     navEmployees: "إدارة الموظفين",
     navGeofence: "إعدادات النطاق الجغرافي",
-    navPayroll: "الخصومات والرواتب",
+    navPayroll: "إدارة الموارد البشرية",
     navDepartments: "الأقسام",
     logout: "تسجيل الخروج",
     logoutConfirm: "هل انت متأكد من تسجيل الخروج",
@@ -201,9 +201,9 @@ export const translations = {
     goodAfternoon: "مساء الخير",
     welcomeUser: "مرحباً",
 
-    // Payroll
-    payrollTitle: "الخصومات والرواتب",
-    payrollSub: "تكون هياكل الرواتب الفردية ومنطق الخصم الآلي.",
+    // Payroll & HR
+    payrollTitle: "بوابة الموارد البشرية والرواتب",
+    payrollSub: "التحكم في رواتب الموظفين، الإجازات، تقييم الأداء، العهد والأصول، والتنبيهات التأديبية.",
     baseSalary: "المرتب الشهري الأساسي",
     gracePeriod: "سماحية التأخير (بالدقائق)",
     weekends: "إعدادات أيام العطل الرسمية",

@@ -147,12 +147,57 @@ async function getPool() {
           );
         END
 
+        IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Companies') AND name = 'planName')
+          EXEC('ALTER TABLE Companies ADD planName NVARCHAR(100) DEFAULT ''Standard''');
+
+        IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Companies') AND name = 'maxEmployees')
+          EXEC('ALTER TABLE Companies ADD maxEmployees INT DEFAULT 10');
+
+        IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Companies') AND name = 'features')
+          EXEC('ALTER TABLE Companies ADD features NVARCHAR(MAX) DEFAULT ''Geofences,Departments,Employees''');
+
+        IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Companies') AND name = 'subDurationMonths')
+          EXEC('ALTER TABLE Companies ADD subDurationMonths INT DEFAULT 12');
+
+        IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Companies') AND name = 'subStartDate')
+          EXEC('ALTER TABLE Companies ADD subStartDate NVARCHAR(100) DEFAULT ''''');
+
+        IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Companies') AND name = 'subEndDate')
+          EXEC('ALTER TABLE Companies ADD subEndDate NVARCHAR(100) DEFAULT ''''');
+
+        -- Subscription plans table
+        IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='SubscriptionPlans' AND xtype='U')
+        BEGIN
+          CREATE TABLE SubscriptionPlans (
+            id NVARCHAR(50) PRIMARY KEY,
+            name NVARCHAR(100),
+            durationMonths INT,
+            maxEmployees INT,
+            features NVARCHAR(MAX),
+            createdAt DATETIMEOffset
+          );
+        END
+
         -- 4. Initialize Data
         EXEC('
           IF NOT EXISTS (SELECT 1 FROM Companies WHERE id = ''comp-default'')
           BEGIN
-            INSERT INTO Companies (id, name, domain, logo, createdAt) 
-            VALUES (''comp-default'', ''HQ Main Enterprise'', ''main-hq'', '''', GETDATE());
+            INSERT INTO Companies (id, name, domain, logo, createdAt, planName, maxEmployees, features) 
+            VALUES (''comp-default'', ''HQ Main Enterprise'', ''main-hq'', '''', GETDATE(), ''Premium'', 100, ''Geofences,Departments,Employees,HR_Management'');
+          END
+        ');
+
+        -- Seed initial plans if none exist
+        EXEC('
+          IF NOT EXISTS (SELECT 1 FROM SubscriptionPlans WHERE id = ''plan-standard'')
+          BEGIN
+            INSERT INTO SubscriptionPlans (id, name, durationMonths, maxEmployees, features, createdAt)
+            VALUES (''plan-standard'', ''Standard Plan / الباقة الأساسية'', 12, 15, ''Geofences,Departments,Employees'', GETDATE());
+          END
+          IF NOT EXISTS (SELECT 1 FROM SubscriptionPlans WHERE id = ''plan-premium'')
+          BEGIN
+            INSERT INTO SubscriptionPlans (id, name, durationMonths, maxEmployees, features, createdAt)
+            VALUES (''plan-premium'', ''Premium Plan / الباقة البريميوم'', 12, 100, ''Geofences,Departments,Employees,HR_Management'', GETDATE());
           END
         ');
 
