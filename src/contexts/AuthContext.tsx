@@ -5,6 +5,8 @@ interface User {
   username: string;
   role: "admin" | "ceo" | "employee" | "dev";
   name: string;
+  avatar?: string;
+  department?: string;
 }
 
 interface AuthContextType {

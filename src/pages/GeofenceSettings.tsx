@@ -5,11 +5,15 @@ import { cn } from "@/src/lib/utils";
 import { Geofence } from "../types";
 import { Header } from "../components/Navigation";
 import { GeofenceMap } from "../components/GeofenceMap";
+import { useAuth } from "../contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 import { Language, translations } from "../constants/translations";
 import { useLanguage } from "../contexts/LanguageContext";
 
 export default function GeofenceSettings() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [geofence, setGeofence] = useState<Geofence | null>(null);
   const [loading, setLoading] = useState(true);
   
@@ -18,6 +22,11 @@ export default function GeofenceSettings() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    if (user && user.role !== "ceo" && user.role !== "dev") {
+      navigate("/admin");
+      return;
+    }
+
     fetch("/api/geofence")
       .then(res => {
         if (!res.ok) throw new Error("Load failed");
@@ -33,7 +42,7 @@ export default function GeofenceSettings() {
       .finally(() => {
         setLoading(false);
       });
-  }, []);
+  }, [user, navigate]);
 
   const handleSave = () => {
     if (!geofence) return;
@@ -121,6 +130,27 @@ export default function GeofenceSettings() {
                     <span className={cn("absolute top-3.5 text-[10px] font-bold text-outline", lang === "ar" ? "left-3" : "right-3")}>
                       {lang === "ar" ? "متر" : "Meters"}
                     </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="input-label">{lang === "ar" ? "وقت بدء العمل" : "Work Start Time"}</label>
+                    <input 
+                      type="time" 
+                      className="input-field text-center font-bold font-mono" 
+                      value={geofence.startTime || "08:00"}
+                      onChange={(e) => setGeofence({ ...geofence, startTime: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="input-label">{lang === "ar" ? "وقت نهاية العمل" : "Work End Time"}</label>
+                    <input 
+                      type="time" 
+                      className="input-field text-center font-bold font-mono" 
+                      value={geofence.endTime || "17:00"}
+                      onChange={(e) => setGeofence({ ...geofence, endTime: e.target.value })}
+                    />
                   </div>
                 </div>
               </div>

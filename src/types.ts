@@ -19,6 +19,8 @@ export interface Geofence {
   longitude: number;
   radius: number;
   name: string;
+  startTime?: string;
+  endTime?: string;
 }
 
 export interface AttendanceLog {

@@ -78,9 +78,17 @@ async function getPool() {
             latitude FLOAT,
             longitude FLOAT,
             radius FLOAT,
-            name NVARCHAR(100)
+            name NVARCHAR(100),
+            startTime NVARCHAR(10) DEFAULT '08:00',
+            endTime NVARCHAR(10) DEFAULT '17:00'
           );
         END
+
+        IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Geofence') AND name = 'startTime')
+          EXEC('ALTER TABLE Geofence ADD startTime NVARCHAR(10) DEFAULT ''08:00''');
+        
+        IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Geofence') AND name = 'endTime')
+          EXEC('ALTER TABLE Geofence ADD endTime NVARCHAR(10) DEFAULT ''17:00''');
         
         IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='AttendanceLogs' AND xtype='U')
         BEGIN
@@ -126,7 +134,7 @@ async function getPool() {
 
         -- 4. Initialize Data
         IF NOT EXISTS (SELECT * FROM Geofence)
-          INSERT INTO Geofence (latitude, longitude, radius, name) VALUES (34.0522, -118.2437, 200, 'HQ Main Entrance');
+          INSERT INTO Geofence (latitude, longitude, radius, name, startTime, endTime) VALUES (34.0522, -118.2437, 200, 'HQ Main Entrance', '08:00', '17:00');
 
         -- Use dynamic SQL to check and insert admin to avoid "Invalid column name 'role'" during batch compile
         EXEC('
@@ -159,6 +167,40 @@ function calculateHaversineDistance(lat1: number, lon1: number, lat2: number, lo
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
   return R * c; // Distance in meters
+}
+
+function isTimeWithinWorkingHours(startTime: string = "08:00", endTime: string = "17:00"): boolean {
+  try {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Africa/Tripoli',
+      hour: 'numeric',
+      minute: 'numeric',
+      hour12: false
+    });
+    const parts = formatter.formatToParts(new Date());
+    let hour = 0;
+    let minute = 0;
+    for (const part of parts) {
+      if (part.type === 'hour') hour = parseInt(part.value, 10);
+      if (part.type === 'minute') minute = parseInt(part.value, 10);
+    }
+    
+    const [startHStr, startMStr] = startTime.split(":");
+    const [endHStr, endMStr] = endTime.split(":");
+    const startH = parseInt(startHStr, 10);
+    const startM = parseInt(startMStr, 10);
+    const endH = parseInt(endHStr, 10);
+    const endM = parseInt(endMStr, 10);
+
+    const startTotal = startH * 60 + startM;
+    const endTotal = endH * 60 + endM;
+    const currentTotal = hour * 60 + minute;
+
+    return currentTotal >= startTotal && currentTotal <= endTotal;
+  } catch (err) {
+    console.error("Error checking working hours timezone:", err);
+    return true; // Fallback to true on error to avoid blocking
+  }
 }
 
 async function startServer() {
@@ -214,7 +256,7 @@ async function startServer() {
       const result = await db.request()
         .input("username", sql.NVarChar, username)
         .input("password", sql.NVarChar, password)
-        .query("SELECT id, name, role, username, department FROM Employees WHERE username = @username AND password = @password");
+        .query("SELECT id, name, role, username, department, avatar FROM Employees WHERE username = @username AND password = @password");
 
       if (result.recordset.length > 0) {
         const user = result.recordset[0];
@@ -301,38 +343,67 @@ async function startServer() {
     const { requesterRole } = req.query;
 
     try {
-      // Check if employee is CEO
+      // Check target employee role
       const employeeRes = await db.request().input("id", sql.NVarChar, req.params.id).query("SELECT role FROM Employees WHERE id = @id");
-      if (employeeRes.recordset.length > 0 && employeeRes.recordset[0].role === "ceo" && requesterRole !== "dev") {
-        return res.status(403).json({ error: "CEO accounts can only be deleted by the developer" });
+      if (employeeRes.recordset.length > 0) {
+        const targetRole = employeeRes.recordset[0].role;
+        if (targetRole === "ceo" && requesterRole !== "dev") {
+          return res.status(403).json({ error: "CEO accounts can only be deleted by the developer" });
+        }
+        if (targetRole === "admin" && requesterRole === "admin") {
+          return res.status(403).json({ error: "لا يمكن للادمنز حذف بعضهم البعض، فقط الـ CEO يمكنه ذلك." });
+        }
       }
 
-      // Delete associated logs first
-      await db.request().input("id", sql.NVarChar, req.params.id).query("DELETE FROM AttendanceLogs WHERE employeeId = @id");
+      // Delete associated logs (safely catch any errors)
+      try {
+        await db.request().input("id", sql.NVarChar, req.params.id).query("DELETE FROM AttendanceLogs WHERE employeeId = @id");
+      } catch (logErr) {
+        console.warn("Harmless error deleting employee attendance logs:", logErr);
+      }
+      
+      // Delete associated payroll configs (safely catch any errors)
+      try {
+        await db.request().input("id", sql.NVarChar, req.params.id).query("DELETE FROM PayrollConfigs WHERE employeeId = @id");
+      } catch (payrollErr) {
+        console.warn("Harmless error deleting employee payroll configurations:", payrollErr);
+      }
       
       // Delete the employee
       await db.request().input("id", sql.NVarChar, req.params.id).query("DELETE FROM Employees WHERE id = @id");
       
       res.status(204).end();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Delete failed:", err);
-      res.status(500).json({ error: "Failed to delete" });
+      res.status(500).json({ error: `Failed to delete: ${err && err.message ? err.message : String(err)}` });
     }
   });
 
   app.get("/api/geofence", async (req, res) => {
     const db = await getPool();
-    if (!db) return res.json({ latitude: 34.0522, longitude: -118.2437, radius: 200, name: "HQ Main Entrance" });
+    if (!db) return res.json({ latitude: 34.0522, longitude: -118.2437, radius: 200, name: "HQ Main Entrance", startTime: "08:00", endTime: "17:00" });
     
     const result = await db.request().query("SELECT TOP 1 * FROM Geofence");
-    res.json(result.recordset[0]);
+    if (result.recordset.length > 0) {
+      res.json({
+        latitude: 34.0522,
+        longitude: -118.2437,
+        radius: 200,
+        name: "HQ Main Entrance",
+        startTime: "08:00",
+        endTime: "17:00",
+        ...result.recordset[0]
+      });
+    } else {
+      res.json({ latitude: 34.0522, longitude: -118.2437, radius: 200, name: "HQ Main Entrance", startTime: "08:00", endTime: "17:00" });
+    }
   });
 
   app.post("/api/geofence", async (req, res) => {
     const db = await getPool();
     if (!db) return res.status(503).json({ error: "Database not connected" });
     
-    const { latitude, longitude, radius, name } = req.body;
+    const { latitude, longitude, radius, name, startTime, endTime } = req.body;
     try {
       // Robust Upsert for Geofence
       await db.request()
@@ -340,14 +411,16 @@ async function startServer() {
         .input("lng", sql.Float, longitude)
         .input("rad", sql.Float, radius)
         .input("name", sql.NVarChar, name)
+        .input("start", sql.NVarChar, startTime || "08:00")
+        .input("end", sql.NVarChar, endTime || "17:00")
         .query(`
           IF EXISTS (SELECT 1 FROM Geofence)
-            UPDATE Geofence SET latitude = @lat, longitude = @lng, radius = @rad, name = @name;
+            UPDATE Geofence SET latitude = @lat, longitude = @lng, radius = @rad, name = @name, startTime = @start, endTime = @end;
           ELSE
-            INSERT INTO Geofence (latitude, longitude, radius, name) VALUES (@lat, @lng, @rad, @name);
+            INSERT INTO Geofence (latitude, longitude, radius, name, startTime, endTime) VALUES (@lat, @lng, @rad, @name, @start, @end);
         `);
       
-      res.json({ latitude, longitude, radius, name });
+      res.json({ latitude, longitude, radius, name, startTime: startTime || "08:00", endTime: endTime || "17:00" });
     } catch (err) {
       console.error("Geofence update failed:", err);
       res.status(500).json({ error: "Failed to update configuration" });
@@ -560,15 +633,28 @@ async function startServer() {
     const db = await getPool();
     const { employeeId, lat, lng } = req.body;
 
+    let geofence = { startTime: "08:00", endTime: "17:00", latitude: 34.0522, longitude: -118.2437, radius: 200, name: "HQ Main Entrance" };
+    if (db) {
+      try {
+        const fenceRes = await db.request().query("SELECT TOP 1 * FROM Geofence");
+        if (fenceRes.recordset.length > 0) {
+          geofence = { ...geofence, ...fenceRes.recordset[0] };
+        }
+      } catch (err) {
+        console.error("Failed to fetch geofence for check-in hours:", err);
+      }
+    }
+
+    if (!isTimeWithinWorkingHours(geofence.startTime, geofence.endTime)) {
+      return res.status(400).json({ success: false, message: "بصمه خارج وقت العمل" });
+    }
+
     if (!db) {
       // Mock success for demo
       return res.json({ success: true, log: { id: "demo_"+Date.now(), employeeId, timestamp: new Date(), status: "In" } });
     }
 
     try {
-      const fenceRes = await db.request().query("SELECT TOP 1 * FROM Geofence");
-      const geofence = fenceRes.recordset[0];
-
       const distanceMeter = calculateHaversineDistance(geofence.latitude, geofence.longitude, lat, lng);
 
       if (distanceMeter <= geofence.radius) {
@@ -643,6 +729,10 @@ async function startServer() {
       }
 
       const existingRole = employeeRes.recordset[0].role;
+      if (existingRole === 'admin' && requesterRole === 'admin' && req.params.id !== req.body.currentUserId && req.params.id !== req.body.id) {
+        return res.status(403).json({ error: "لا يمكن للادمنز تعديل بعضهم البعض، فقط الـ CEO يمكنه تعديلهم." });
+      }
+
       if ((role === 'ceo' || existingRole === 'ceo') && requesterRole !== 'dev') {
         if (existingRole !== 'ceo' && role === 'ceo') return res.status(403).json({ error: "Only dev can assign CEO role" });
         if (existingRole === 'ceo' && role !== 'ceo') return res.status(403).json({ error: "Only dev can remove CEO role" });

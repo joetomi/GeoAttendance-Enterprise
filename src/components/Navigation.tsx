@@ -42,13 +42,14 @@ export function MobileMenu({ isOpen, onClose }: { isOpen: boolean; onClose: () =
     navigate("/");
   };
 
+  const isCeoOrDev = user?.role === "ceo" || user?.role === "dev";
   const isAdmin = user?.role === "admin" || user?.role === "ceo";
 
   const navItems = [
     ...(isAdmin ? [
       { icon: Users, label: t.navEmployees, path: "/admin" },
       { icon: Building2, label: t.navDepartments, path: "/departments" },
-      { icon: MapPin, label: t.navGeofence, path: "/geofence" },
+      ...(isCeoOrDev ? [{ icon: MapPin, label: t.navGeofence, path: "/geofence" }] : []),
       { icon: Wallet, label: t.navPayroll, path: "/payroll" },
     ] : [
       { icon: MapPin, label: lang === "ar" ? "تسجيل الحضور" : "Check In", path: "/check-in" },
@@ -199,13 +200,14 @@ export function Sidebar({ className }: SidebarProps) {
     navigate("/");
   };
 
+  const isCeoOrDev = user?.role === "ceo" || user?.role === "dev";
   const isAdmin = user?.role === "admin" || user?.role === "ceo";
 
   const navItems = [
     ...(isAdmin ? [
       { icon: Users, label: t.navEmployees, path: "/admin" },
       { icon: Building2, label: t.navDepartments, path: "/departments" },
-      { icon: MapPin, label: t.navGeofence, path: "/geofence" },
+      ...(isCeoOrDev ? [{ icon: MapPin, label: t.navGeofence, path: "/geofence" }] : []),
       { icon: Wallet, label: t.navPayroll, path: "/payroll" },
     ] : [
       { icon: MapPin, label: lang === "ar" ? "تسجيل الحضور" : "Check In", path: "/check-in" },
@@ -267,7 +269,7 @@ export function Sidebar({ className }: SidebarProps) {
             <div className="overflow-hidden">
               <p className="text-sm font-medium text-white truncate">{user?.name || t.adminSupport}</p>
               <a 
-                href="https://wa.me/218910078707" 
+                href="https://api.whatsapp.com/send/?phone=218913004788&text&type=phone_number&app_absent=0" 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="text-[10px] uppercase text-white font-bold tracking-wider hover:underline block opacity-80 hover:opacity-100 transition-opacity"

@@ -105,8 +105,10 @@ export default function MobileCheckIn() {
             setInZone(newMode === 'In');
           } else {
             setStatus('error');
-            const msg = data.message || data.error || "Request failed";
-            if (msg.includes("Outside geofence area")) {
+            let msg = data.message || data.error || "Request failed";
+            if (msg.includes("بصمه خارج وقت العمل") || msg.includes("Outside working hours") || msg.includes("خارج وقت العمل")) {
+              setLocationError(lang === "ar" ? "بصمه خارج وقت العمل" : "Attendance failed: Outside of working hours");
+            } else if (msg.includes("Outside geofence area")) {
               const distanceMatch = msg.match(/\(Distance: (\d+)m\)/);
               if (distanceMatch) {
                 const distance = distanceMatch[1];

@@ -164,7 +164,8 @@ export default function AdminDashboard() {
         name: newEmployee.name || newEmployee.username, 
         email: `${newEmployee.username}@enterprise.com`, 
         status: 'Active',
-        requesterRole: currentRequester.role
+        requesterRole: currentRequester.role,
+        currentUserId: currentRequester.id
       })
     })
       .then(async (res) => {
@@ -513,15 +514,17 @@ export default function AdminDashboard() {
                             </td>
                             <td className="px-6 py-4">
                               <div className="flex items-center justify-end gap-2">
-                                <button 
-                                  type="button"
-                                  onClick={() => handleEditClick(employee)}
-                                  className="p-2 text-secondary hover:bg-secondary-container transition-colors rounded-full flex items-center justify-center"
-                                  title="Edit Employee"
-                                >
-                                  <Edit3 className="w-4 h-4 pointer-events-none" />
-                                </button>
-                                {employee.id !== currentUser.id && (
+                                {(currentUser.role === 'ceo' || currentUser.role === 'dev' || (currentUser.role === 'admin' && (employee.role !== 'admin' || employee.id === currentUser.id))) && (
+                                  <button 
+                                    type="button"
+                                    onClick={() => handleEditClick(employee)}
+                                    className="p-2 text-secondary hover:bg-secondary-container transition-colors rounded-full flex items-center justify-center"
+                                    title="Edit Employee"
+                                  >
+                                    <Edit3 className="w-4 h-4 pointer-events-none" />
+                                  </button>
+                                )}
+                                {employee.id !== currentUser.id && (currentUser.role === 'ceo' || currentUser.role === 'dev' || (currentUser.role === 'admin' && employee.role !== 'admin')) && (
                                   <button 
                                     type="button"
                                     onClick={() => deleteEmployee(employee.id)}
@@ -560,7 +563,7 @@ export default function AdminDashboard() {
                   </button>
                 </div>
 
-                <div className="card p-4 bg-surface-container-high border border-outline-variant/30 bg-pattern-wavy">
+                <div className="card p-5 bg-surface-container-high border border-outline-variant/30 bg-pattern-wavy">
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
                     <div className="space-y-1.5">
                       <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant opacity-60">{t.fromDate}</label>
@@ -568,7 +571,7 @@ export default function AdminDashboard() {
                         type="date" 
                         value={filterStartDate}
                         onChange={(e) => setFilterStartDate(e.target.value)}
-                        className="w-full bg-surface-container border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20"
+                        className="w-full bg-surface-container border border-outline-variant rounded-xl px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
                       />
                     </div>
                     <div className="space-y-1.5">
@@ -577,7 +580,7 @@ export default function AdminDashboard() {
                         type="date" 
                         value={filterEndDate}
                         onChange={(e) => setFilterEndDate(e.target.value)}
-                        className="w-full bg-surface-container border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20"
+                        className="w-full bg-surface-container border border-outline-variant rounded-xl px-4 py-2.5 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
                       />
                     </div>
                     <div className="space-y-1.5">
@@ -585,7 +588,7 @@ export default function AdminDashboard() {
                       <select 
                         value={filterEmployeeId}
                         onChange={(e) => setFilterEmployeeId(e.target.value)}
-                        className="w-full bg-surface-container border border-outline-variant rounded-lg px-3 py-2 text-sm text-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                        className="w-full bg-surface-container border border-outline-variant rounded-xl px-4 py-2.5 text-sm text-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all cursor-pointer"
                       >
                         <option value="all">{t.allEmployees}</option>
                         {employees.map(emp => (
@@ -596,7 +599,7 @@ export default function AdminDashboard() {
                     <button 
                       onClick={exportToExcel} 
                       disabled={loading}
-                      className="w-full h-[38px] flex items-center justify-center gap-2 bg-emerald-600 text-white rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-emerald-700 transition-colors disabled:opacity-50"
+                      className="w-full h-[44px] flex items-center justify-center gap-2 bg-emerald-600 text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-emerald-700 hover:shadow-lg hover:shadow-emerald-600/15 transition-all duration-200 active:scale-[0.98] disabled:opacity-50 cursor-pointer"
                     >
                       <FileSpreadsheet className="w-4 h-4" />
                       {t.export}
