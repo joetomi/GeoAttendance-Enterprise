@@ -25,6 +25,7 @@ export default function PayrollDashboard() {
   const [loading, setLoading] = useState(false);
   
   const { lang, t } = useLanguage();
+  const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
 
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ type: "success" | "error", text: string } | null>(null);
@@ -53,7 +54,9 @@ export default function PayrollDashboard() {
 
   const fetchEmployees = async () => {
     try {
-      const res = await fetch("/api/employees");
+      const res = await fetch("/api/employees", {
+        headers: { "X-Company-Id": currentUser.companyId || "" }
+      });
       const data = await res.json();
       setEmployees(data);
       if (data.length > 0 && !selectedEmployeeId) {
@@ -67,7 +70,9 @@ export default function PayrollDashboard() {
   const fetchPayrollConfig = async (empId: string) => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/payroll/config/${empId}`);
+      const res = await fetch(`/api/payroll/config/${empId}`, {
+        headers: { "X-Company-Id": currentUser.companyId || "" }
+      });
       const data = await res.json();
       setPayrollConfig({
         ...data,
@@ -87,7 +92,10 @@ export default function PayrollDashboard() {
     try {
       const res = await fetch("/api/payroll/config", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "X-Company-Id": currentUser.companyId || ""
+        },
         body: JSON.stringify({
           employeeId: selectedEmployeeId,
           ...payrollConfig
@@ -119,7 +127,9 @@ export default function PayrollDashboard() {
         employeeId: selectedEmployeeId
       });
       
-      const res = await fetch(`/api/attendance/report?${queryParams.toString()}`);
+      const res = await fetch(`/api/attendance/report?${queryParams.toString()}`, {
+        headers: { "X-Company-Id": currentUser.companyId || "" }
+      });
       const logs = await res.json();
       
       const employee = employees.find(e => e.id === selectedEmployeeId);

@@ -28,7 +28,9 @@ export default function GeofenceSettings() {
       return;
     }
 
-    fetch("/api/geofence")
+    fetch("/api/geofence", {
+      headers: { "X-Company-Id": user?.companyId || "" }
+    })
       .then(res => {
         if (!res.ok) throw new Error("Load failed");
         return res.json();
@@ -69,8 +71,11 @@ export default function GeofenceSettings() {
     setSaving(true);
     fetch("/api/geofence", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(geofence)
+      headers: { 
+        "Content-Type": "application/json",
+        "X-Company-Id": user?.companyId || ""
+      },
+      body: JSON.stringify({ ...geofence, companyId: user?.companyId })
     })
       .then(async (res) => {
         if (!res.ok) throw new Error("Update failed");

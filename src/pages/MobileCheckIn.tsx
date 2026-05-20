@@ -24,8 +24,10 @@ export default function MobileCheckIn() {
     setShowLangMenu(false);
   };
 
-  const fetchStatus = (userId: string) => {
-    fetch(`/api/attendance/status/${userId}`)
+  const fetchStatus = (userId: string, companyId?: string) => {
+    fetch(`/api/attendance/status/${userId}`, {
+      headers: { "X-Company-Id": companyId || "" }
+    })
       .then(res => res.json())
       .then(data => {
         if (data.status) {
@@ -38,20 +40,24 @@ export default function MobileCheckIn() {
 
   useEffect(() => {
     const savedUser = localStorage.getItem("user");
+    let companyId = "comp-default";
     if (savedUser) {
       const u = JSON.parse(savedUser);
+      companyId = u.companyId || "comp-default";
       if (u.role === "admin") {
         navigate("/admin");
         return;
       }
       setUser(u);
-      fetchStatus(u.id);
+      fetchStatus(u.id, u.companyId);
     } else {
       navigate("/login");
     }
 
     // Fetch Geofence config
-    fetch("/api/geofence")
+    fetch("/api/geofence", {
+      headers: { "X-Company-Id": companyId }
+    })
       .then(res => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
@@ -89,7 +95,10 @@ export default function MobileCheckIn() {
         
         fetch(endpoint, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { 
+            "Content-Type": "application/json",
+            "X-Company-Id": user?.companyId || ""
+          },
           body: JSON.stringify({
             employeeId: user.id,
             lat: latitude,

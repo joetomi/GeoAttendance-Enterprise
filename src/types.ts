@@ -12,6 +12,7 @@ export interface Employee {
   department: string;
   status: 'Active' | 'Inactive';
   avatar?: string;
+  companyId?: string;
 }
 
 export interface Geofence {
@@ -21,6 +22,7 @@ export interface Geofence {
   name: string;
   startTime?: string;
   endTime?: string;
+  companyId?: string;
 }
 
 export interface AttendanceLog {
@@ -28,4 +30,5 @@ export interface AttendanceLog {
   employeeId: string;
   timestamp: string;
   status: 'In' | 'Out';
+  companyId?: string;
 }

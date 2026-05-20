@@ -35,6 +35,7 @@ interface Employee {
 
 export default function DepartmentManagement() {
   const { lang, t } = useLanguage();
+  const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
   const [departments, setDepartments] = useState<Department[]>([]);
   const [selectedDept, setSelectedDept] = useState<Department | null>(null);
   const [deptEmployees, setDeptEmployees] = useState<Employee[]>([]);
@@ -66,7 +67,9 @@ export default function DepartmentManagement() {
   const fetchDepartments = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/departments");
+      const res = await fetch("/api/departments", {
+        headers: { "X-Company-Id": currentUser.companyId || "" }
+      });
       if (res.ok) {
         const data = await res.json();
         setDepartments(data);
@@ -81,7 +84,9 @@ export default function DepartmentManagement() {
   const fetchDeptEmployees = async (id: string) => {
     setEmpLoading(true);
     try {
-      const res = await fetch(`/api/departments/${id}/employees`);
+      const res = await fetch(`/api/departments/${id}/employees`, {
+        headers: { "X-Company-Id": currentUser.companyId || "" }
+      });
       if (res.ok) {
         const data = await res.json();
         setDeptEmployees(data);
@@ -98,8 +103,11 @@ export default function DepartmentManagement() {
     try {
       const res = await fetch("/api/departments", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(editingDept ? { ...formData, id: editingDept.id } : formData)
+        headers: { 
+          "Content-Type": "application/json",
+          "X-Company-Id": currentUser.companyId || ""
+        },
+        body: JSON.stringify(editingDept ? { ...formData, id: editingDept.id, companyId: currentUser.companyId } : { ...formData, companyId: currentUser.companyId })
       });
       if (res.ok) {
         fetchDepartments();
@@ -116,7 +124,9 @@ export default function DepartmentManagement() {
     if (!editingDept) return;
     setCheckingEmployees(true);
     try {
-      const res = await fetch(`/api/departments/${editingDept.id}/employees`);
+      const res = await fetch(`/api/departments/${editingDept.id}/employees`, {
+        headers: { "X-Company-Id": currentUser.companyId || "" }
+      });
       if (res.ok) {
         const data = await res.json();
         setEditingDeptEmployees(data);
@@ -134,7 +144,8 @@ export default function DepartmentManagement() {
     if (!editingDept) return;
     try {
       const res = await fetch(`/api/departments/${editingDept.id}`, {
-        method: "DELETE"
+        method: "DELETE",
+        headers: { "X-Company-Id": currentUser.companyId || "" }
       });
       if (res.ok) {
         fetchDepartments();

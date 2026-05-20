@@ -41,10 +41,10 @@ export default function AdminDashboard() {
     try {
       setLoading(true);
       const [empRes, attRes, onlineRes, statsRes] = await Promise.all([
-        fetch("/api/employees").catch(() => null),
-        fetch("/api/attendance").catch(() => null),
-        fetch("/api/employees/online").catch(() => null),
-        fetch("/api/stats").catch(() => null)
+        fetch("/api/employees", { headers: { "X-Company-Id": currentUser.companyId || "" } }).catch(() => null),
+        fetch("/api/attendance", { headers: { "X-Company-Id": currentUser.companyId || "" } }).catch(() => null),
+        fetch("/api/employees/online", { headers: { "X-Company-Id": currentUser.companyId || "" } }).catch(() => null),
+        fetch("/api/stats", { headers: { "X-Company-Id": currentUser.companyId || "" } }).catch(() => null)
       ]);
 
       if (empRes && empRes.ok) {
@@ -92,11 +92,11 @@ export default function AdminDashboard() {
     const fetchData = async () => {
       try {
         const [empRes, attRes, onlineRes, statsRes, deptRes] = await Promise.all([
-          fetch("/api/employees").catch(() => null),
-          fetch("/api/attendance").catch(() => null),
-          fetch("/api/employees/online").catch(() => null),
-          fetch("/api/stats").catch(() => null),
-          fetch("/api/departments").catch(() => null)
+          fetch("/api/employees", { headers: { "X-Company-Id": currentUser.companyId || "" } }).catch(() => null),
+          fetch("/api/attendance", { headers: { "X-Company-Id": currentUser.companyId || "" } }).catch(() => null),
+          fetch("/api/employees/online", { headers: { "X-Company-Id": currentUser.companyId || "" } }).catch(() => null),
+          fetch("/api/stats", { headers: { "X-Company-Id": currentUser.companyId || "" } }).catch(() => null),
+          fetch("/api/departments", { headers: { "X-Company-Id": currentUser.companyId || "" } }).catch(() => null)
         ]);
 
         if (empRes && empRes.ok) {
@@ -158,14 +158,18 @@ export default function AdminDashboard() {
 
     fetch(endpoint, {
       method: method,
-      headers: { "Content-Type": "application/json" },
+      headers: { 
+        "Content-Type": "application/json",
+        "X-Company-Id": currentRequester.companyId || ""
+      },
       body: JSON.stringify({ 
         ...newEmployee, 
         name: newEmployee.name || newEmployee.username, 
         email: `${newEmployee.username}@enterprise.com`, 
         status: 'Active',
         requesterRole: currentRequester.role,
-        currentUserId: currentRequester.id
+        currentUserId: currentRequester.id,
+        companyId: currentRequester.companyId || ""
       })
     })
       .then(async (res) => {
@@ -236,7 +240,10 @@ export default function AdminDashboard() {
     setLoading(true);
     try {
       const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
-      const res = await fetch(`/api/employees/${confirmingDeleteId}?requesterRole=${currentUser.role}`, { method: "DELETE" });
+      const res = await fetch(`/api/employees/${confirmingDeleteId}?requesterRole=${currentUser.role}`, { 
+        method: "DELETE",
+        headers: { "X-Company-Id": currentUser.companyId || "" }
+      });
       if (!res.ok) throw new Error("Delete failed on server");
       
       const id = confirmingDeleteId;
@@ -255,7 +262,9 @@ export default function AdminDashboard() {
       }
       
       // Refresh stats
-      const statsRes = await fetch("/api/stats");
+      const statsRes = await fetch("/api/stats", {
+        headers: { "X-Company-Id": currentUser.companyId || "" }
+      });
       if (statsRes.ok) {
         const data = await statsRes.json();
         setStats(data);
@@ -278,7 +287,9 @@ export default function AdminDashboard() {
         employeeId: filterEmployeeId
       });
       
-      const res = await fetch(`/api/attendance/report?${queryParams.toString()}`);
+      const res = await fetch(`/api/attendance/report?${queryParams.toString()}`, {
+        headers: { "X-Company-Id": currentUser.companyId || "" }
+      });
       if (!res.ok) throw new Error("Failed to fetch report data");
       const logs = await res.json();
       

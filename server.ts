@@ -70,6 +70,9 @@ async function getPool() {
         IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Employees') AND name = 'avatar')
           EXEC('ALTER TABLE Employees ADD avatar NVARCHAR(MAX)');
         
+        IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Employees') AND name = 'companyId')
+          EXEC('ALTER TABLE Employees ADD companyId NVARCHAR(50)');
+
         -- 3. Core structural tables
         IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='Geofence' AND xtype='U')
         BEGIN
@@ -89,6 +92,9 @@ async function getPool() {
         
         IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Geofence') AND name = 'endTime')
           EXEC('ALTER TABLE Geofence ADD endTime NVARCHAR(10) DEFAULT ''17:00''');
+
+        IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Geofence') AND name = 'companyId')
+          EXEC('ALTER TABLE Geofence ADD companyId NVARCHAR(50)');
         
         IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='AttendanceLogs' AND xtype='U')
         BEGIN
@@ -99,6 +105,9 @@ async function getPool() {
             status NVARCHAR(10)
           );
         END
+
+        IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('AttendanceLogs') AND name = 'companyId')
+          EXEC('ALTER TABLE AttendanceLogs ADD companyId NVARCHAR(50)');
 
         IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='Notifications' AND xtype='U')
         BEGIN
@@ -121,29 +130,61 @@ async function getPool() {
             description NVARCHAR(255),
             color NVARCHAR(20) DEFAULT '#3B82F6'
           );
-          
-          -- Seed initial departments if none exist
-          IF NOT EXISTS (SELECT * FROM Departments)
-          BEGIN
-            INSERT INTO Departments (id, name, description, color) VALUES 
-            ('dept_1', 'Engineering', 'Software and Infrastructure', '#3B82F6'),
-            ('dept_2', 'Marketing', 'Growth and Strategy', '#EC4899'),
-            ('dept_3', 'Operations', 'Global Logistics', '#10B981');
-          END
+        END
+
+        IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Departments') AND name = 'companyId')
+          EXEC('ALTER TABLE Departments ADD companyId NVARCHAR(50)');
+
+        -- New Company table
+        IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='Companies' AND xtype='U')
+        BEGIN
+          CREATE TABLE Companies (
+            id NVARCHAR(50) PRIMARY KEY,
+            name NVARCHAR(100),
+            domain NVARCHAR(100),
+            logo NVARCHAR(MAX),
+            createdAt DATETIMEOffset
+          );
         END
 
         -- 4. Initialize Data
         EXEC('
-          IF NOT EXISTS (SELECT * FROM Geofence)
-            INSERT INTO Geofence (latitude, longitude, radius, name, startTime, endTime) VALUES (34.0522, -118.2437, 200, ''HQ Main Entrance'', ''08:00'', ''17:00'');
+          IF NOT EXISTS (SELECT 1 FROM Companies WHERE id = ''comp-default'')
+          BEGIN
+            INSERT INTO Companies (id, name, domain, logo, createdAt) 
+            VALUES (''comp-default'', ''HQ Main Enterprise'', ''main-hq'', '''', GETDATE());
+          END
+        ');
+
+        EXEC('
+          UPDATE Employees SET companyId = ''comp-default'' WHERE companyId IS NULL;
+          UPDATE AttendanceLogs SET companyId = ''comp-default'' WHERE companyId IS NULL;
+          UPDATE Departments SET companyId = ''comp-default'' WHERE companyId IS NULL;
+          UPDATE Geofence SET companyId = ''comp-default'' WHERE companyId IS NULL;
+        ');
+
+        -- Seed initial departments if none exist for default company
+        EXEC('
+          IF NOT EXISTS (SELECT * FROM Departments WHERE companyId = ''comp-default'')
+          BEGIN
+            INSERT INTO Departments (id, name, description, color, companyId) VALUES 
+            (''dept_1'', ''Engineering'', ''Software and Infrastructure'', ''#3B82F6'', ''comp-default''),
+            (''dept_2'', ''Marketing'', ''Growth and Strategy'', ''#EC4899'', ''comp-default''),
+            (''dept_3'', ''Operations'', ''Global Logistics'', ''#10B981'', ''comp-default'');
+          END
+        ');
+
+        EXEC('
+          IF NOT EXISTS (SELECT * FROM Geofence WHERE companyId = ''comp-default'')
+            INSERT INTO Geofence (latitude, longitude, radius, name, startTime, endTime, companyId) VALUES (34.0522, -118.2437, 200, ''HQ Main Entrance'', ''08:00'', ''17:00'', ''comp-default'');
         ');
 
         -- Use dynamic SQL to check and insert admin to avoid "Invalid column name 'role'" during batch compile
         EXEC('
           IF NOT EXISTS (SELECT 1 FROM Employees WHERE role = ''admin'')
           BEGIN
-            INSERT INTO Employees (id, name, username, password, role, status, department, avatar) 
-            VALUES (''admin_1'', ''System Admin'', ''admin'', ''admin123'', ''admin'', ''Active'', ''Security'', ''https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=100&h=100&auto=format&fit=crop'');
+            INSERT INTO Employees (id, name, username, password, role, status, department, avatar, companyId) 
+            VALUES (''admin_1'', ''System Admin'', ''admin'', ''admin123'', ''admin'', ''Active'', ''Security'', ''https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=100&h=100&auto=format&fit=crop'', ''comp-default'');
           END
         ');
       `);
@@ -258,7 +299,7 @@ async function startServer() {
       const result = await db.request()
         .input("username", sql.NVarChar, username)
         .input("password", sql.NVarChar, password)
-        .query("SELECT id, name, role, username, department, avatar FROM Employees WHERE username = @username AND password = @password");
+        .query("SELECT id, name, role, username, department, avatar, companyId FROM Employees WHERE username = @username AND password = @password");
 
       if (result.recordset.length > 0) {
         const user = result.recordset[0];
@@ -309,11 +350,18 @@ async function startServer() {
     if (!db) {
        // Fallback mock for UI demo if no DB
        return res.json([
-        { id: "1", name: "Sarah Chen", email: "sarah.c@enterprise.com", department: "Operations", status: "Active", avatar: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=200&h=200&auto=format&fit=crop" },
-        { id: "2", name: "Marcus Thompson", email: "m.thompson@enterprise.com", department: "Logistics", status: "Active", avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=200&h=200&auto=format&fit=crop" }
+        { id: "1", name: "Sarah Chen", email: "sarah.c@enterprise.com", department: "Operations", status: "Active", avatar: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=200&h=200&auto=format&fit=crop", companyId: "comp-default" },
+        { id: "2", name: "Marcus Thompson", email: "m.thompson@enterprise.com", department: "Logistics", status: "Active", avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=200&h=200&auto=format&fit=crop", companyId: "comp-default" }
       ]);
     }
-    const result = await db.request().query("SELECT * FROM Employees");
+    const companyId = req.headers["x-company-id"] || req.query.companyId;
+    let query = "SELECT * FROM Employees";
+    const request = db.request();
+    if (companyId) {
+      request.input("companyId", sql.NVarChar, companyId);
+      query += " WHERE companyId = @companyId";
+    }
+    const result = await request.query(query);
     res.json(result.recordset);
   });
 
@@ -322,6 +370,7 @@ async function startServer() {
     if (!db) return res.status(503).json({ error: "Database not connected" });
     
     const { name, email, department, status, avatar, username, password, role, requesterRole } = req.body;
+    const companyId = req.headers["x-company-id"] || req.query.companyId || req.body.companyId || "comp-default";
 
     // Guard CEO role: Only dev can create CEO
     if (role === "ceo" && requesterRole !== "dev") {
@@ -340,9 +389,10 @@ async function startServer() {
       .input("department", sql.NVarChar, department)
       .input("status", sql.NVarChar, status)
       .input("avatar", sql.NVarChar(sql.MAX), avatar)
-      .query("INSERT INTO Employees (id, name, username, password, role, email, department, status, avatar) VALUES (@id, @name, @username, @password, @role, @email, @department, @status, @avatar)");
+      .input("companyId", sql.NVarChar, companyId)
+      .query("INSERT INTO Employees (id, name, username, password, role, email, department, status, avatar, companyId) VALUES (@id, @name, @username, @password, @role, @email, @department, @status, @avatar, @companyId)");
     
-    res.status(201).json({ id, name, username, role, email, department, status, avatar });
+    res.status(201).json({ id, name, username, role, email, department, status, avatar, companyId });
   });
 
   app.delete("/api/employees/:id", async (req, res) => {
@@ -390,9 +440,12 @@ async function startServer() {
 
   app.get("/api/geofence", async (req, res) => {
     const db = await getPool();
-    if (!db) return res.json({ latitude: 34.0522, longitude: -118.2437, radius: 200, name: "HQ Main Entrance", startTime: "08:00", endTime: "17:00" });
+    const companyId = req.headers["x-company-id"] || req.query.companyId || "comp-default";
+    if (!db) return res.json({ latitude: 34.0522, longitude: -118.2437, radius: 200, name: "HQ Main Entrance", startTime: "08:00", endTime: "17:00", companyId });
     
-    const result = await db.request().query("SELECT TOP 1 * FROM Geofence");
+    const result = await db.request()
+      .input("companyId", sql.NVarChar, companyId)
+      .query("SELECT TOP 1 * FROM Geofence WHERE companyId = @companyId");
     if (result.recordset.length > 0) {
       res.json({
         latitude: 34.0522,
@@ -404,7 +457,7 @@ async function startServer() {
         ...result.recordset[0]
       });
     } else {
-      res.json({ latitude: 34.0522, longitude: -118.2437, radius: 200, name: "HQ Main Entrance", startTime: "08:00", endTime: "17:00" });
+      res.json({ latitude: 34.0522, longitude: -118.2437, radius: 200, name: "HQ Main Entrance", startTime: "08:00", endTime: "17:00", companyId });
     }
   });
 
@@ -413,6 +466,7 @@ async function startServer() {
     if (!db) return res.status(503).json({ error: "Database not connected" });
     
     const { latitude, longitude, radius, name, startTime, endTime } = req.body;
+    const companyId = req.headers["x-company-id"] || req.query.companyId || "comp-default";
     try {
       // Robust Upsert for Geofence
       await db.request()
@@ -422,14 +476,15 @@ async function startServer() {
         .input("name", sql.NVarChar, name)
         .input("start", sql.NVarChar, startTime || "08:00")
         .input("end", sql.NVarChar, endTime || "17:00")
+        .input("companyId", sql.NVarChar, companyId)
         .query(`
-          IF EXISTS (SELECT 1 FROM Geofence)
-            UPDATE Geofence SET latitude = @lat, longitude = @lng, radius = @rad, name = @name, startTime = @start, endTime = @end;
+          IF EXISTS (SELECT 1 FROM Geofence WHERE companyId = @companyId)
+            UPDATE Geofence SET latitude = @lat, longitude = @lng, radius = @rad, name = @name, startTime = @start, endTime = @end WHERE companyId = @companyId;
           ELSE
-            INSERT INTO Geofence (latitude, longitude, radius, name, startTime, endTime) VALUES (@lat, @lng, @rad, @name, @start, @end);
+            INSERT INTO Geofence (latitude, longitude, radius, name, startTime, endTime, companyId) VALUES (@lat, @lng, @rad, @name, @start, @end, @companyId);
         `);
       
-      res.json({ latitude, longitude, radius, name, startTime: startTime || "08:00", endTime: endTime || "17:00" });
+      res.json({ latitude, longitude, radius, name, startTime: startTime || "08:00", endTime: endTime || "17:00", companyId });
     } catch (err) {
       console.error("Geofence update failed:", err);
       res.status(500).json({ error: "Failed to update configuration" });
@@ -441,6 +496,7 @@ async function startServer() {
     if (!db) return res.json([]);
     
     const { from, to, employeeId } = req.query;
+    const companyId = req.headers["x-company-id"] || req.query.companyId;
     let query = `
       SELECT l.*, e.name as employeeName, e.department, e.username
       FROM AttendanceLogs l
@@ -464,6 +520,10 @@ async function startServer() {
     if (employeeId && employeeId !== "all") {
       request.input("employeeId", sql.NVarChar, employeeId);
       query += " AND l.employeeId = @employeeId";
+    }
+    if (companyId) {
+      request.input("companyId", sql.NVarChar, companyId);
+      query += " AND l.companyId = @companyId";
     }
     
     query += " ORDER BY l.timestamp ASC";
@@ -566,23 +626,35 @@ async function startServer() {
   app.get("/api/attendance", async (req, res) => {
     const db = await getPool();
     if (!db) return res.json([]);
-    const result = await db.request().query(`
+    const companyId = req.headers["x-company-id"] || req.query.companyId;
+    let query = `
       SELECT TOP 50 l.*, e.name as employeeName, e.department, e.avatar, e.username, e.role
       FROM AttendanceLogs l
       LEFT JOIN Employees e ON l.employeeId = e.id
-      ORDER BY l.timestamp DESC
-    `);
-    res.json(result.recordset);
+    `;
+    const request = db.request();
+    if (companyId) {
+      request.input("companyId", sql.NVarChar, companyId);
+      query += " WHERE l.companyId = @companyId";
+    }
+    query += " ORDER BY l.timestamp DESC";
+    try {
+      const result = await request.query(query);
+      res.json(result.recordset);
+    } catch (err) {
+      res.status(500).json({ error: "Failed to fetch attendance logs" });
+    }
   });
 
   app.get("/api/employees/online", async (req, res) => {
     const db = await getPool();
     if (!db) return res.json([]);
+    const companyId = req.headers["x-company-id"] || req.query.companyId;
     
     try {
-      const result = await db.request().query(`
+      let query = `
         WITH LatestLogs AS (
-          SELECT employeeId, status, timestamp,
+          SELECT employeeId, status, timestamp, companyId,
           ROW_NUMBER() OVER (PARTITION BY employeeId ORDER BY timestamp DESC) as rn
           FROM AttendanceLogs
         )
@@ -590,7 +662,13 @@ async function startServer() {
         FROM Employees e
         JOIN LatestLogs l ON e.id = l.employeeId
         WHERE l.rn = 1 AND l.status = 'In'
-      `);
+      `;
+      const request = db.request();
+      if (companyId) {
+        request.input("companyId", sql.NVarChar, companyId);
+        query += " AND e.companyId = @companyId AND l.companyId = @companyId";
+      }
+      const result = await request.query(query);
       res.json(result.recordset);
     } catch (err) {
       res.status(500).json({ error: "Failed to fetch online users" });
@@ -599,21 +677,54 @@ async function startServer() {
 
   app.get("/api/stats", async (req, res) => {
     const db = await getPool();
+    const companyId = req.headers["x-company-id"] || req.query.companyId;
     if (!db) return res.json({ totalEmployees: 0, activeToday: 0, onlineNow: 0, totalLogs: 0 });
 
     try {
-      const stats = await db.request().query(`
-        SELECT 
-          (SELECT COUNT(*) FROM Employees) as totalEmployees,
-          (SELECT COUNT(DISTINCT employeeId) FROM AttendanceLogs WHERE CAST(timestamp AS DATE) = CAST(GETDATE() AS DATE)) as activeToday,
-          (SELECT COUNT(*) FROM (
-            SELECT employeeId, status, ROW_NUMBER() OVER (PARTITION BY employeeId ORDER BY timestamp DESC) as rn
-            FROM AttendanceLogs
-          ) l WHERE rn = 1 AND status = 'In') as onlineNow,
-          (SELECT COUNT(*) FROM AttendanceLogs) as totalLogs
-      `);
-      res.json(stats.recordset[0]);
+      let queryEmployeeCount = "SELECT COUNT(*) as value FROM Employees";
+      let queryActiveToday = "SELECT COUNT(DISTINCT employeeId) as value FROM AttendanceLogs WHERE CAST(timestamp AS DATE) = CAST(GETDATE() AS DATE)";
+      let queryOnlineNow = `
+        SELECT COUNT(*) as value FROM (
+          SELECT employeeId, status, ROW_NUMBER() OVER (PARTITION BY employeeId ORDER BY timestamp DESC) as rn, companyId
+          FROM AttendanceLogs
+        ) l WHERE rn = 1 AND status = 'In'
+      `;
+      let queryTotalLogs = "SELECT COUNT(*) as value FROM AttendanceLogs";
+
+      if (companyId) {
+        queryEmployeeCount += " WHERE companyId = @companyId";
+        queryActiveToday += " AND companyId = @companyId";
+        queryOnlineNow += " AND companyId = @companyId";
+        queryTotalLogs += " WHERE companyId = @companyId";
+      }
+
+      const reqEmployee = db.request();
+      const reqActive = db.request();
+      const reqOnline = db.request();
+      const reqTotal = db.request();
+
+      if (companyId) {
+        reqEmployee.input("companyId", sql.NVarChar, companyId);
+        reqActive.input("companyId", sql.NVarChar, companyId);
+        reqOnline.input("companyId", sql.NVarChar, companyId);
+        reqTotal.input("companyId", sql.NVarChar, companyId);
+      }
+
+      const [resEmp, resAct, resOn, resTot] = await Promise.all([
+        reqEmployee.query(queryEmployeeCount),
+        reqActive.query(queryActiveToday),
+        reqOnline.query(queryOnlineNow),
+        reqTotal.query(queryTotalLogs)
+      ]);
+
+      res.json({
+        totalEmployees: resEmp.recordset[0]?.value || 0,
+        activeToday: resAct.recordset[0]?.value || 0,
+        onlineNow: resOn.recordset[0]?.value || 0,
+        totalLogs: resTot.recordset[0]?.value || 0
+      });
     } catch (err) {
+      console.error("Stats query failed:", err);
       res.status(500).json({ error: "Failed to fetch stats" });
     }
   });
@@ -642,16 +753,27 @@ async function startServer() {
     const db = await getPool();
     const { employeeId, lat, lng } = req.body;
 
+    let companyId = "comp-default";
     let geofence = { startTime: "08:00", endTime: "17:00", latitude: 34.0522, longitude: -118.2437, radius: 200, name: "HQ Main Entrance" };
+    
     if (db) {
-      try {
-        const fenceRes = await db.request().query("SELECT TOP 1 * FROM Geofence");
-        if (fenceRes.recordset.length > 0) {
-          geofence = { ...geofence, ...fenceRes.recordset[0] };
-        }
-      } catch (err) {
-        console.error("Failed to fetch geofence for check-in hours:", err);
-      }
+       try {
+         const empRes = await db.request().input("empId", sql.NVarChar, employeeId).query("SELECT companyId FROM Employees WHERE id = @empId");
+         if (empRes.recordset.length > 0 && empRes.recordset[0].companyId) {
+           companyId = empRes.recordset[0].companyId;
+         }
+       } catch (err) {
+         console.error("Failed to find employee company during check-in:", err);
+       }
+
+       try {
+         const fenceRes = await db.request().input("companyId", sql.NVarChar, companyId).query("SELECT TOP 1 * FROM Geofence WHERE companyId = @companyId");
+         if (fenceRes.recordset.length > 0) {
+           geofence = { ...geofence, ...fenceRes.recordset[0] };
+         }
+       } catch (err) {
+         console.error("Failed to fetch geofence for check-in:", err);
+       }
     }
 
     if (!isTimeWithinWorkingHours(geofence.startTime, geofence.endTime)) {
@@ -660,7 +782,7 @@ async function startServer() {
 
     if (!db) {
       // Mock success for demo
-      return res.json({ success: true, log: { id: "demo_"+Date.now(), employeeId, timestamp: new Date(), status: "In" } });
+      return res.json({ success: true, log: { id: "demo_"+Date.now(), employeeId, timestamp: new Date(), status: "In", companyId } });
     }
 
     try {
@@ -675,9 +797,10 @@ async function startServer() {
           .input("employeeId", sql.NVarChar, employeeId)
           .input("timestamp", sql.DateTimeOffset, timestamp)
           .input("status", sql.NVarChar, "In")
-          .query("INSERT INTO AttendanceLogs (id, employeeId, timestamp, status) VALUES (@id, @employeeId, @timestamp, @status)");
+          .input("companyId", sql.NVarChar, companyId)
+          .query("INSERT INTO AttendanceLogs (id, employeeId, timestamp, status, companyId) VALUES (@id, @employeeId, @timestamp, @status, @companyId)");
 
-        res.json({ success: true, log: { id, employeeId, timestamp, status: "In" } });
+        res.json({ success: true, log: { id, employeeId, timestamp, status: "In", companyId } });
       } else {
         res.status(400).json({ success: false, message: `Outside geofence area (Distance: ${Math.round(distanceMeter)}m)` });
       }
@@ -691,13 +814,27 @@ async function startServer() {
     const db = await getPool();
     const { employeeId, lat, lng } = req.body;
 
+    let companyId = "comp-default";
+    let geofence = { startTime: "08:00", endTime: "17:00", latitude: 34.0522, longitude: -118.2437, radius: 200, name: "HQ Main Entrance" };
+
     if (!db) {
-       return res.json({ success: true, log: { id: "demo_"+Date.now(), employeeId, timestamp: new Date(), status: "Out" } });
+       return res.json({ success: true, log: { id: "demo_"+Date.now(), employeeId, timestamp: new Date(), status: "Out", companyId } });
     }
 
     try {
-      const fenceRes = await db.request().query("SELECT TOP 1 * FROM Geofence");
-      const geofence = fenceRes.recordset[0];
+      try {
+        const empRes = await db.request().input("empId", sql.NVarChar, employeeId).query("SELECT companyId FROM Employees WHERE id = @empId");
+        if (empRes.recordset.length > 0 && empRes.recordset[0].companyId) {
+          companyId = empRes.recordset[0].companyId;
+        }
+      } catch (err) {
+        console.error("Failed to find employee company during check-out:", err);
+      }
+
+      const fenceRes = await db.request().input("companyId", sql.NVarChar, companyId).query("SELECT TOP 1 * FROM Geofence WHERE companyId = @companyId");
+      if (fenceRes.recordset.length > 0) {
+        geofence = { ...geofence, ...fenceRes.recordset[0] };
+      }
 
       const distanceMeter = calculateHaversineDistance(geofence.latitude, geofence.longitude, lat, lng);
 
@@ -710,9 +847,10 @@ async function startServer() {
           .input("employeeId", sql.NVarChar, employeeId)
           .input("timestamp", sql.DateTimeOffset, timestamp)
           .input("status", sql.NVarChar, "Out")
-          .query("INSERT INTO AttendanceLogs (id, employeeId, timestamp, status) VALUES (@id, @employeeId, @timestamp, @status)");
+          .input("companyId", sql.NVarChar, companyId)
+          .query("INSERT INTO AttendanceLogs (id, employeeId, timestamp, status, companyId) VALUES (@id, @employeeId, @timestamp, @status, @companyId)");
 
-        res.json({ success: true, log: { id, employeeId, timestamp, status: "Out" } });
+        res.json({ success: true, log: { id, employeeId, timestamp, status: "Out", companyId } });
       } else {
         res.status(400).json({ success: false, message: `Outside geofence area (Distance: ${Math.round(distanceMeter)}m)` });
       }
@@ -830,12 +968,198 @@ async function startServer() {
     }
   });
 
+  // --- Developer Dashboard Route ---
+  app.get("/api/dev/dashboard", async (req, res) => {
+    const db = await getPool();
+    if (!db) {
+      // Mock stats when database is not connected
+      return res.json({
+        employeeCounts: [
+          { companyId: "comp-default", companyName: "HQ Main Enterprise", count: 8 },
+          { companyId: "comp-almarai", companyName: "Almarai Co.", count: 12 },
+          { companyId: "comp-aramco", companyName: "Saudi Aramco", count: 25 },
+        ],
+        attendanceHistory: [
+          { date: "2026-05-15", "HQ Main Enterprise": 4, "Almarai Co.": 8, "Saudi Aramco": 18 },
+          { date: "2026-05-16", "HQ Main Enterprise": 5, "Almarai Co.": 10, "Saudi Aramco": 20 },
+          { date: "2026-05-17", "HQ Main Enterprise": 3, "Almarai Co.": 9, "Saudi Aramco": 15 },
+          { date: "2026-05-18", "HQ Main Enterprise": 6, "Almarai Co.": 11, "Saudi Aramco": 22 },
+          { date: "2026-05-19", "HQ Main Enterprise": 7, "Almarai Co.": 12, "Saudi Aramco": 24 },
+          { date: "2026-05-20", "HQ Main Enterprise": 8, "Almarai Co.": 12, "Saudi Aramco": 25 },
+        ],
+        recentLogs: [
+          { id: "101", employeeId: "emp-1", employeeName: "Ahmad Al-Qahtani", department: "Engineering", timestamp: "2026-05-20T08:05:00Z", status: "In", companyId: "comp-aramco" },
+          { id: "102", employeeId: "emp-2", employeeName: "Faris Salem", department: "Logistics", timestamp: "2026-05-20T08:12:00Z", status: "In", companyId: "comp-almarai" },
+          { id: "103", employeeId: "emp-3", employeeName: "Khaled Ali", department: "Operations", timestamp: "2026-05-20T08:15:00Z", status: "In", companyId: "comp-default" },
+          { id: "104", employeeId: "emp-4", employeeName: "Saeed Omar", department: "Engineering", timestamp: "2026-05-20T12:01:00Z", status: "Out", companyId: "comp-aramco" },
+        ],
+        employeesList: [
+          { id: "emp-1", name: "Ahmad Al-Qahtani", email: "a.qahtani@aramco.com", department: "Engineering", status: "Active", companyId: "comp-aramco" },
+          { id: "emp-2", name: "Faris Salem", email: "f.salem@almarai.com", department: "Logistics", status: "Active", companyId: "comp-almarai" },
+          { id: "emp-3", name: "Khaled Ali", email: "k.ali@hq.com", department: "Operations", status: "Active", companyId: "comp-default" },
+        ]
+      });
+    }
+
+    try {
+      // 1. Fetch Companies so we can map names
+      const compRes = await db.request().query("SELECT * FROM Companies");
+      const companies = compRes.recordset;
+
+      // 2. Count Employees per company
+      const empCountRes = await db.request().query(`
+        SELECT companyId, COUNT(*) as count 
+        FROM Employees 
+        GROUP BY companyId
+      `);
+      const empCountsRaw = empCountRes.recordset;
+
+      // Map counts with corporate names
+      const employeeCounts = companies.map(c => {
+        const found = empCountsRaw.find(r => r.companyId === c.id);
+        return {
+          companyId: c.id,
+          companyName: c.name,
+          count: found ? found.count : 0
+        };
+      });
+
+      // 3. Attendance Logs timeline grouping
+      const timelineRes = await db.request().query(`
+        SELECT 
+          CONVERT(VARCHAR(10), l.timestamp, 120) as date, 
+          l.companyId, 
+          COUNT(*) as loginCount
+        FROM AttendanceLogs l
+        WHERE l.status = 'In'
+        GROUP BY CONVERT(VARCHAR(10), l.timestamp, 120), l.companyId
+        ORDER BY date ASC
+      `);
+      const timelineRaw = timelineRes.recordset;
+
+      // Reorganize formatting to make it chart-friendly (e.g. { date: '2026-05-19', 'Company A': 5, 'Company B': 7 })
+      const distinctDates = Array.from(new Set(timelineRaw.map(r => r.date))).sort();
+      const attendanceHistory = distinctDates.map(date => {
+        const entry: any = { date };
+        companies.forEach(comp => {
+          const match = timelineRaw.find(r => r.date === date && r.companyId === comp.id);
+          entry[comp.name] = match ? match.loginCount : 0;
+        });
+        return entry;
+      });
+
+      // 4. Recent flat logs for all companies
+      const logsRes = await db.request().query(`
+        SELECT TOP 100 l.id, l.employeeId, l.timestamp, l.status, l.companyId, 
+               e.name as employeeName, e.department, e.avatar
+        FROM AttendanceLogs l
+        LEFT JOIN Employees e ON l.employeeId = e.id
+        ORDER BY l.timestamp DESC
+      `);
+      const recentLogs = logsRes.recordset;
+
+      // 5. Employees flat list for filtering inside details
+      const employeesRes = await db.request().query("SELECT id, name, email, department, status, avatar, companyId FROM Employees");
+      const employeesList = employeesRes.recordset;
+
+      res.json({
+        employeeCounts,
+        attendanceHistory,
+        recentLogs,
+        employeesList
+      });
+    } catch (err) {
+      console.error("Failed to construct dev dashboard stats:", err);
+      res.status(500).json({ error: "Failed to generate developer dashboard metrics" });
+    }
+  });
+
+  // --- Companies Routes ---
+  app.get("/api/companies", async (req, res) => {
+    const db = await getPool();
+    if (!db) return res.json([{ id: "comp-default", name: "HQ Main Enterprise", domain: "main-hq", logo: "" }]);
+    try {
+      const result = await db.request().query("SELECT * FROM Companies ORDER BY createdAt DESC");
+      res.json(result.recordset);
+    } catch (err) {
+      console.error("Failed to fetch companies:", err);
+      res.status(500).json({ error: "Failed to fetch companies" });
+    }
+  });
+
+  app.post("/api/companies", async (req, res) => {
+    const db = await getPool();
+    if (!db) return res.status(503).json({ error: "Database not connected" });
+    const { name, domain, logo } = req.body;
+    const id = "comp-" + Math.random().toString(36).substr(2, 9);
+    try {
+      await db.request()
+        .input("id", sql.NVarChar, id)
+        .input("name", sql.NVarChar, name)
+        .input("domain", sql.NVarChar, domain)
+        .input("logo", sql.NVarChar(sql.MAX), logo || "")
+        .query("INSERT INTO Companies (id, name, domain, logo, createdAt) VALUES (@id, @name, @domain, @logo, GETDATE())");
+      
+      // Auto-create a default geofence configuration for this new company so they have one
+      await db.request()
+        .input("companyId", sql.NVarChar, id)
+        .query("INSERT INTO Geofence (latitude, longitude, radius, name, startTime, endTime, companyId) VALUES (34.0522, -118.2437, 200, 'HQ Main Entrance', '08:00', '17:00', @companyId)");
+
+      res.status(201).json({ id, name, domain, logo });
+    } catch (err) {
+      console.error("Failed to create company:", err);
+      res.status(500).json({ error: "Failed to create company" });
+    }
+  });
+
+  app.put("/api/companies/:id", async (req, res) => {
+    const db = await getPool();
+    if (!db) return res.status(503).json({ error: "Database not connected" });
+    const { name, domain, logo } = req.body;
+    try {
+      await db.request()
+        .input("id", sql.NVarChar, req.params.id)
+        .input("name", sql.NVarChar, name)
+        .input("domain", sql.NVarChar, domain)
+        .input("logo", sql.NVarChar(sql.MAX), logo || "")
+        .query("UPDATE Companies SET name = @name, domain = @domain, logo = @logo WHERE id = @id");
+      res.json({ id: req.params.id, name, domain, logo });
+    } catch (err) {
+      console.error("Failed to update company:", err);
+      res.status(500).json({ error: "Failed to update company" });
+    }
+  });
+
+  app.delete("/api/companies/:id", async (req, res) => {
+    const db = await getPool();
+    if (!db) return res.status(503).json({ error: "Database not connected" });
+    try {
+      // Delete child records bound to this companyId to maintain database integrity
+      await db.request().input("id", sql.NVarChar, req.params.id).query("DELETE FROM Employees WHERE companyId = @id");
+      await db.request().input("id", sql.NVarChar, req.params.id).query("DELETE FROM AttendanceLogs WHERE companyId = @id");
+      await db.request().input("id", sql.NVarChar, req.params.id).query("DELETE FROM Departments WHERE companyId = @id");
+      await db.request().input("id", sql.NVarChar, req.params.id).query("DELETE FROM Geofence WHERE companyId = @id");
+      await db.request().input("id", sql.NVarChar, req.params.id).query("DELETE FROM Companies WHERE id = @id");
+      res.status(204).end();
+    } catch (err) {
+      console.error("Failed to delete company:", err);
+      res.status(500).json({ error: "Failed to delete company" });
+    }
+  });
+
   // Department Routes
   app.get("/api/departments", async (req, res) => {
     const db = await getPool();
     if (!db) return res.json([]);
+    const companyId = req.headers["x-company-id"] || req.query.companyId;
     try {
-      const result = await db.request().query("SELECT * FROM Departments");
+      let query = "SELECT * FROM Departments";
+      const request = db.request();
+      if (companyId) {
+        request.input("companyId", sql.NVarChar, companyId);
+        query += " WHERE companyId = @companyId";
+      }
+      const result = await request.query(query);
       res.json(result.recordset);
     } catch (err) {
       res.status(500).json({ error: "Failed to fetch departments" });
@@ -846,6 +1170,7 @@ async function startServer() {
     const db = await getPool();
     if (!db) return res.status(503).json({ error: "DB not connected" });
     const { id, name, description, color } = req.body;
+    const companyId = req.headers["x-company-id"] || req.query.companyId || req.body.companyId || "comp-default";
     try {
       if (id) {
         // Update
@@ -863,7 +1188,8 @@ async function startServer() {
           .input("name", sql.NVarChar, name)
           .input("desc", sql.NVarChar, description)
           .input("color", sql.NVarChar, color)
-          .query("INSERT INTO Departments (id, name, description, color) VALUES (@id, @name, @desc, @color)");
+          .input("companyId", sql.NVarChar, companyId)
+          .query("INSERT INTO Departments (id, name, description, color, companyId) VALUES (@id, @name, @desc, @color, @companyId)");
       }
       res.json({ success: true });
     } catch (err) {
