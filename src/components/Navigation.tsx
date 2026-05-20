@@ -9,7 +9,6 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
-  Search,
   Bell,
   Wallet,
   Globe,
@@ -409,14 +408,7 @@ export function Header({ title, onMenuClick }: { title: string; onMenuClick?: ()
           </AnimatePresence>
         </div>
 
-        <div className="hidden md:flex items-center bg-surface-container-high rounded-full px-4 py-2 w-64 border border-outline-variant">
-          <Search className={cn("w-4 h-4 text-on-surface-variant", lang === "ar" ? "ml-2" : "mr-2")} />
-          <input 
-            type="text" 
-            placeholder={lang === "ar" ? "بحث..." : "Search directory..."} 
-            className="bg-transparent border-none focus:ring-0 text-sm w-full outline-none"
-          />
-        </div>
+
         <div className="flex items-center gap-1">
           {/* Notification Bell */}
           {isAdmin && (

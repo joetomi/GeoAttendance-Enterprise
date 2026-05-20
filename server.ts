@@ -261,6 +261,13 @@ async function startServer() {
       if (result.recordset.length > 0) {
         const user = result.recordset[0];
         
+        // Empty existing notifications list upon successful login as requested by the user
+        try {
+          await db.request().query("DELETE FROM Notifications");
+        } catch (clearErr) {
+          console.error("Failed to empty notifications on login:", clearErr);
+        }
+        
         // Log notification for successful login
         const notificationId = Math.random().toString(36).substr(2, 9);
         const timestamp = new Date();

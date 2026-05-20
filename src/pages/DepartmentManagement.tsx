@@ -6,7 +6,6 @@ import {
   Users, 
   MoreHorizontal, 
   ChevronRight, 
-  Search,
   LayoutGrid,
   List,
   Edit2,
