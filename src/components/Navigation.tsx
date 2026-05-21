@@ -43,13 +43,15 @@ export function MobileMenu({ isOpen, onClose }: { isOpen: boolean; onClose: () =
 
   const isCeoOrDev = user?.role === "ceo" || user?.role === "dev";
   const isAdmin = user?.role === "admin" || user?.role === "ceo";
+  const featuresList = user?.features ? user.features.split(",") : ["Geofences", "Departments", "Employees"];
+  const isHRAllowed = user?.role === "dev" || featuresList.includes("HR_Management");
 
   const navItems = [
     ...(isAdmin ? [
       { icon: Users, label: t.navEmployees, path: "/admin" },
       { icon: Building2, label: t.navDepartments, path: "/departments" },
       ...(isCeoOrDev ? [{ icon: MapPin, label: t.navGeofence, path: "/geofence" }] : []),
-      { icon: Wallet, label: t.navPayroll, path: "/payroll" },
+      ...(isHRAllowed ? [{ icon: Wallet, label: t.navPayroll, path: "/payroll" }] : []),
     ] : [
       { icon: MapPin, label: lang === "ar" ? "تسجيل الحضور" : "Check In", path: "/check-in" },
     ]),
@@ -201,13 +203,15 @@ export function Sidebar({ className }: SidebarProps) {
 
   const isCeoOrDev = user?.role === "ceo" || user?.role === "dev";
   const isAdmin = user?.role === "admin" || user?.role === "ceo";
+  const featuresList = user?.features ? user.features.split(",") : ["Geofences", "Departments", "Employees"];
+  const isHRAllowed = user?.role === "dev" || featuresList.includes("HR_Management");
 
   const navItems = [
     ...(isAdmin ? [
       { icon: Users, label: t.navEmployees, path: "/admin" },
       { icon: Building2, label: t.navDepartments, path: "/departments" },
       ...(isCeoOrDev ? [{ icon: MapPin, label: t.navGeofence, path: "/geofence" }] : []),
-      { icon: Wallet, label: t.navPayroll, path: "/payroll" },
+      ...(isHRAllowed ? [{ icon: Wallet, label: t.navPayroll, path: "/payroll" }] : []),
     ] : [
       { icon: MapPin, label: lang === "ar" ? "تسجيل الحضور" : "Check In", path: "/check-in" },
     ]),

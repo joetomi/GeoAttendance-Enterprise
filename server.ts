@@ -344,7 +344,13 @@ async function startServer() {
       const result = await db.request()
         .input("username", sql.NVarChar, username)
         .input("password", sql.NVarChar, password)
-        .query("SELECT id, name, role, username, department, avatar, companyId FROM Employees WHERE username = @username AND password = @password");
+        .query(`
+          SELECT e.id, e.name, e.role, e.username, e.department, e.avatar, e.companyId, 
+                 c.name as companyName, c.planName, c.maxEmployees, c.features
+          FROM Employees e
+          LEFT JOIN Companies c ON e.companyId = c.id
+          WHERE e.username = @username AND e.password = @password
+        `);
 
       if (result.recordset.length > 0) {
         const user = result.recordset[0];
@@ -420,6 +426,47 @@ async function startServer() {
     // Guard CEO role: Only dev can create CEO
     if (role === "ceo" && requesterRole !== "dev") {
       return res.status(403).json({ error: "Only developer can create CEO accounts" });
+    }
+
+    // 1. Username uniqueness check database-wide
+    try {
+      const usernameCheck = await db.request()
+        .input("username", sql.NVarChar, username)
+        .query("SELECT id FROM Employees WHERE username = @username");
+      if (usernameCheck.recordset.length > 0) {
+        return res.status(400).json({ 
+          error: "اسم المستخدم مأخوذ بالفعل! الرجاء اختيار اسم مستخدم آخر وذكّور.",
+          errorEn: "Username is already taken! Please choose another username." 
+        });
+      }
+    } catch (checkErr) {
+      console.error("Username uniqueness check failed:", checkErr);
+    }
+
+    // 2. Max employee limits enforcement per company
+    try {
+      const companyRes = await db.request()
+        .input("companyId", sql.NVarChar, companyId)
+        .query("SELECT maxEmployees FROM Companies WHERE id = @companyId");
+      
+      if (companyRes.recordset.length > 0) {
+        const { maxEmployees } = companyRes.recordset[0];
+        
+        // Count existing employees in the company (excluding 'dev' role which doesn't count towards client quota)
+        const countRes = await db.request()
+          .input("companyId", sql.NVarChar, companyId)
+          .query("SELECT COUNT(*) as count FROM Employees WHERE companyId = @companyId AND role <> 'dev'");
+        
+        const currentCount = countRes.recordset[0].count;
+        if (currentCount >= maxEmployees) {
+          return res.status(400).json({
+            error: `لقد تجاوزت هذه المنشأة الحد الأقصى للموظفين المسموح به في باقة الاشتراك (${maxEmployees} موظف). يرجى الترقية لإضافة موظف آخر.`,
+            errorEn: `This company has exceeded its subscription employee limit of ${maxEmployees}. Please upgrade subscription to add more employees.`
+          });
+        }
+      }
+    } catch (limitErr) {
+      console.error("Employee limit check failed:", limitErr);
     }
 
     const id = Math.random().toString(36).substr(2, 9);
@@ -931,6 +978,18 @@ async function startServer() {
         if (existingRole === 'ceo' && role === 'ceo' && requesterRole !== 'ceo') return res.status(403).json({ error: "Unauthorized access to CEO account" });
       }
 
+      // Check username uniqueness
+      const usernameCheck = await db.request()
+        .input("username", sql.NVarChar, username)
+        .input("id", sql.NVarChar, req.params.id)
+        .query("SELECT id FROM Employees WHERE username = @username AND id <> @id");
+      if (usernameCheck.recordset.length > 0) {
+        return res.status(400).json({ 
+          error: "اسم المستخدم مأخوذ بالفعل! الرجاء اختيار اسم مستخدم آخر وذكّور.",
+          errorEn: "Username is already taken! Please choose another username." 
+        });
+      }
+
       const hasPass = password && password !== "********" && password.trim() !== "";
       const request = db.request()
         .input("id", sql.NVarChar, req.params.id)
@@ -1135,7 +1194,29 @@ async function startServer() {
   app.post("/api/companies", async (req, res) => {
     const db = await getPool();
     if (!db) return res.status(503).json({ error: "Database not connected" });
-    const { name, domain, logo } = req.body;
+    const { 
+      name, 
+      domain, 
+      logo, 
+      planName = "Standard", 
+      maxEmployees = 15, 
+      features = "Geofences,Departments,Employees", 
+      subDurationMonths = 12, 
+      subStartDate = new Date().toISOString().split("T")[0], 
+      subEndDate = "" 
+    } = req.body;
+    
+    let calculatedEndDate = subEndDate;
+    if (!calculatedEndDate && subStartDate && subDurationMonths) {
+      try {
+        const start = new Date(subStartDate);
+        start.setMonth(start.getMonth() + parseInt(String(subDurationMonths), 10));
+        calculatedEndDate = start.toISOString().split("T")[0];
+      } catch (e) {
+        calculatedEndDate = "";
+      }
+    }
+
     const id = "comp-" + Math.random().toString(36).substr(2, 9);
     try {
       await db.request()
@@ -1143,14 +1224,26 @@ async function startServer() {
         .input("name", sql.NVarChar, name)
         .input("domain", sql.NVarChar, domain)
         .input("logo", sql.NVarChar(sql.MAX), logo || "")
-        .query("INSERT INTO Companies (id, name, domain, logo, createdAt) VALUES (@id, @name, @domain, @logo, GETDATE())");
+        .input("plan", sql.NVarChar, planName)
+        .input("maxEmp", sql.Int, parseInt(String(maxEmployees), 10))
+        .input("feats", sql.NVarChar, features)
+        .input("dur", sql.Int, parseInt(String(subDurationMonths), 10))
+        .input("start", sql.NVarChar, subStartDate)
+        .input("end", sql.NVarChar, calculatedEndDate)
+        .query(`
+          INSERT INTO Companies (
+            id, name, domain, logo, createdAt, planName, maxEmployees, features, subDurationMonths, subStartDate, subEndDate
+          ) VALUES (
+            @id, @name, @domain, @logo, GETDATE(), @plan, @maxEmp, @feats, @dur, @start, @end
+          )
+        `);
       
       // Auto-create a default geofence configuration for this new company so they have one
       await db.request()
         .input("companyId", sql.NVarChar, id)
         .query("INSERT INTO Geofence (latitude, longitude, radius, name, startTime, endTime, companyId) VALUES (34.0522, -118.2437, 200, 'HQ Main Entrance', '08:00', '17:00', @companyId)");
 
-      res.status(201).json({ id, name, domain, logo });
+      res.status(201).json({ id, name, domain, logo, planName, maxEmployees, features, subDurationMonths, subStartDate, subEndDate: calculatedEndDate });
     } catch (err) {
       console.error("Failed to create company:", err);
       res.status(500).json({ error: "Failed to create company" });
@@ -1160,15 +1253,55 @@ async function startServer() {
   app.put("/api/companies/:id", async (req, res) => {
     const db = await getPool();
     if (!db) return res.status(503).json({ error: "Database not connected" });
-    const { name, domain, logo } = req.body;
+    const { 
+      name, 
+      domain, 
+      logo, 
+      planName = "Standard", 
+      maxEmployees = 15, 
+      features = "Geofences,Departments,Employees", 
+      subDurationMonths = 12, 
+      subStartDate = new Date().toISOString().split("T")[0], 
+      subEndDate = "" 
+    } = req.body;
+
+    let calculatedEndDate = subEndDate;
+    if (!calculatedEndDate && subStartDate && subDurationMonths) {
+      try {
+        const start = new Date(subStartDate);
+        start.setMonth(start.getMonth() + parseInt(String(subDurationMonths), 10));
+        calculatedEndDate = start.toISOString().split("T")[0];
+      } catch (e) {
+        calculatedEndDate = "";
+      }
+    }
+
     try {
       await db.request()
         .input("id", sql.NVarChar, req.params.id)
         .input("name", sql.NVarChar, name)
         .input("domain", sql.NVarChar, domain)
         .input("logo", sql.NVarChar(sql.MAX), logo || "")
-        .query("UPDATE Companies SET name = @name, domain = @domain, logo = @logo WHERE id = @id");
-      res.json({ id: req.params.id, name, domain, logo });
+        .input("plan", sql.NVarChar, planName)
+        .input("maxEmp", sql.Int, parseInt(String(maxEmployees), 10))
+        .input("feats", sql.NVarChar, features)
+        .input("dur", sql.Int, parseInt(String(subDurationMonths), 10))
+        .input("start", sql.NVarChar, subStartDate)
+        .input("end", sql.NVarChar, calculatedEndDate)
+        .query(`
+          UPDATE Companies SET 
+            name = @name, 
+            domain = @domain, 
+            logo = @logo,
+            planName = @plan,
+            maxEmployees = @maxEmp,
+            features = @feats,
+            subDurationMonths = @dur,
+            subStartDate = @start,
+            subEndDate = @end
+          WHERE id = @id
+        `);
+      res.json({ id: req.params.id, name, domain, logo, planName, maxEmployees, features, subDurationMonths, subStartDate, subEndDate: calculatedEndDate });
     } catch (err) {
       console.error("Failed to update company:", err);
       res.status(500).json({ error: "Failed to update company" });
@@ -1189,6 +1322,77 @@ async function startServer() {
     } catch (err) {
       console.error("Failed to delete company:", err);
       res.status(500).json({ error: "Failed to delete company" });
+    }
+  });
+
+  // --- Subscription Plans Routes ---
+  app.get("/api/subscription-plans", async (req, res) => {
+    const db = await getPool();
+    if (!db) {
+      return res.json([
+        { id: "plan-standard", name: "Standard Plan / الباقة الأساسية", durationMonths: 12, maxEmployees: 15, features: "Geofences,Departments,Employees" },
+        { id: "plan-premium", name: "Premium Plan / الباقة البريميوم", durationMonths: 12, maxEmployees: 100, features: "Geofences,Departments,Employees,HR_Management" }
+      ]);
+    }
+    try {
+      const result = await db.request().query("SELECT * FROM SubscriptionPlans ORDER BY createdAt DESC");
+      res.json(result.recordset);
+    } catch (err) {
+      console.error("Failed to fetch subscription plans:", err);
+      res.status(500).json({ error: "Failed to fetch subscription plans" });
+    }
+  });
+
+  app.post("/api/subscription-plans", async (req, res) => {
+    const db = await getPool();
+    if (!db) return res.status(503).json({ error: "Database not connected" });
+    const { name, durationMonths, maxEmployees, features } = req.body;
+    const id = "plan-" + Math.random().toString(36).substr(2, 9);
+    try {
+      await db.request()
+        .input("id", sql.NVarChar, id)
+        .input("name", sql.NVarChar, name)
+        .input("durationMonths", sql.Int, parseInt(String(durationMonths), 10) || 12)
+        .input("maxEmployees", sql.Int, parseInt(String(maxEmployees), 10) || 10)
+        .input("features", sql.NVarChar, features || "Geofences,Departments,Employees")
+        .query("INSERT INTO SubscriptionPlans (id, name, durationMonths, maxEmployees, features, createdAt) VALUES (@id, @name, @durationMonths, @maxEmployees, @features, GETDATE())");
+      
+      res.status(201).json({ id, name, durationMonths, maxEmployees, features });
+    } catch (err) {
+      console.error("Failed to create subscription plan:", err);
+      res.status(500).json({ error: "Failed to create subscription plan" });
+    }
+  });
+
+  app.put("/api/subscription-plans/:id", async (req, res) => {
+    const db = await getPool();
+    if (!db) return res.status(503).json({ error: "Database not connected" });
+    const { name, durationMonths, maxEmployees, features } = req.body;
+    try {
+      await db.request()
+        .input("id", sql.NVarChar, req.params.id)
+        .input("name", sql.NVarChar, name)
+        .input("durationMonths", sql.Int, parseInt(String(durationMonths), 10) || 12)
+        .input("maxEmployees", sql.Int, parseInt(String(maxEmployees), 10) || 10)
+        .input("features", sql.NVarChar, features || "Geofences,Departments,Employees")
+        .query("UPDATE SubscriptionPlans SET name = @name, durationMonths = @durationMonths, maxEmployees = @maxEmployees, features = @features WHERE id = @id");
+      
+      res.json({ id: req.params.id, name, durationMonths, maxEmployees, features });
+    } catch (err) {
+      console.error("Failed to update subscription plan:", err);
+      res.status(500).json({ error: "Failed to update subscription plan" });
+    }
+  });
+
+  app.delete("/api/subscription-plans/:id", async (req, res) => {
+    const db = await getPool();
+    if (!db) return res.status(503).json({ error: "Database not connected" });
+    try {
+      await db.request().input("id", sql.NVarChar, req.params.id).query("DELETE FROM SubscriptionPlans WHERE id = @id");
+      res.status(204).end();
+    } catch (err) {
+      console.error("Failed to delete subscription plan:", err);
+      res.status(500).json({ error: "Failed to delete subscription plan" });
     }
   });
 

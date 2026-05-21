@@ -22,13 +22,38 @@ interface Company {
   name: string;
   domain: string;
   logo: string;
+  planName?: string;
+  maxEmployees?: number;
+  features?: string;
+  subDurationMonths?: number;
+  subStartDate?: string;
+  subEndDate?: string;
+}
+
+interface SubscriptionPlan {
+  id: string;
+  name: string;
+  durationMonths: number;
+  maxEmployees: number;
+  features: string;
 }
 
 export default function DeveloperPanel() {
   const [ceos, setCeos] = useState<Employee[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"dashboard" | "companies" | "ceos">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "companies" | "ceos" | "plans">("dashboard");
+
+  // Subscription Plans Management State
+  const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
+  const [showPlanModal, setShowPlanModal] = useState(false);
+  const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
+  const [newPlan, setNewPlan] = useState({
+    name: "",
+    durationMonths: 12,
+    maxEmployees: 15,
+    features: "Geofences,Departments,Employees"
+  });
 
   // Dashboard state
   const [dashboardData, setDashboardData] = useState<{
@@ -62,7 +87,13 @@ export default function DeveloperPanel() {
   const [newCompany, setNewCompany] = useState({
     name: "",
     domain: "",
-    logo: ""
+    logo: "",
+    planName: "Standard",
+    maxEmployees: 15,
+    features: "Geofences,Departments,Employees",
+    subDurationMonths: 12,
+    subStartDate: new Date().toISOString().split("T")[0],
+    subEndDate: ""
   });
 
   // Delete State
@@ -71,10 +102,22 @@ export default function DeveloperPanel() {
   const [itemToDelete, setItemToDelete] = useState<any | null>(null);
   const [opError, setOpError] = useState<string | null>(null);
   
-  const { lang, t } = useLanguage();
+  const { lang, setLanguage, t } = useLanguage();
   const navigate = useNavigate();
 
   const user = JSON.parse(localStorage.getItem("user") || "{}");
+
+  const fetchPlans = async () => {
+    try {
+      const res = await fetch("/api/subscription-plans");
+      if (res.ok) {
+        const data = await res.json();
+        setPlans(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch plans:", err);
+    }
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -87,7 +130,7 @@ export default function DeveloperPanel() {
         setCompanies(comps);
       }
 
-      // 2. Fetch CEOs (using x-company-id = empty to get all employees for Dev)
+      // 2. Fetch CEOs
       const ceoRes = await fetch("/api/employees");
       if (ceoRes.ok) {
         const data = await ceoRes.json();
@@ -100,6 +143,9 @@ export default function DeveloperPanel() {
         const dashData = await dashRes.json();
         setDashboardData(dashData);
       }
+
+      // 4. Fetch subscription plans
+      await fetchPlans();
     } catch (err) {
       console.error("Fetch data failed in developer panel", err);
     } finally {
@@ -123,13 +169,33 @@ export default function DeveloperPanel() {
   // --- Company CRUD handlers ---
   const handleAddCompanyClick = () => {
     setEditingCompanyId(null);
-    setNewCompany({ name: "", domain: "", logo: "" });
+    setNewCompany({ 
+      name: "", 
+      domain: "", 
+      logo: "",
+      planName: "Standard",
+      maxEmployees: 15,
+      features: "Geofences,Departments,Employees",
+      subDurationMonths: 12,
+      subStartDate: new Date().toISOString().split("T")[0],
+      subEndDate: ""
+    });
     setShowCompanyModal(true);
   };
 
   const handleEditCompanyClick = (comp: Company) => {
     setEditingCompanyId(comp.id);
-    setNewCompany({ name: comp.name, domain: comp.domain, logo: comp.logo || "" });
+    setNewCompany({ 
+      name: comp.name, 
+      domain: comp.domain, 
+      logo: comp.logo || "",
+      planName: comp.planName || "Standard",
+      maxEmployees: comp.maxEmployees || 15,
+      features: comp.features || "Geofences,Departments,Employees",
+      subDurationMonths: comp.subDurationMonths || 12,
+      subStartDate: comp.subStartDate ? comp.subStartDate.split("T")[0] : new Date().toISOString().split("T")[0],
+      subEndDate: comp.subEndDate ? comp.subEndDate.split("T")[0] : ""
+    });
     setShowCompanyModal(true);
   };
 
@@ -149,11 +215,94 @@ export default function DeveloperPanel() {
       if (res.ok) {
         setShowCompanyModal(false);
         setEditingCompanyId(null);
-        setNewCompany({ name: "", domain: "", logo: "" });
+        setNewCompany({ 
+          name: "", 
+          domain: "", 
+          logo: "",
+          planName: "Standard",
+          maxEmployees: 15,
+          features: "Geofences,Departments,Employees",
+          subDurationMonths: 12,
+          subStartDate: new Date().toISOString().split("T")[0],
+          subEndDate: ""
+        });
         await fetchData();
       } else {
         const err = await res.json().catch(() => ({ error: "Failed to save company" }));
         alert(err.error || "Failed to save company");
+      }
+    } catch (err) {
+      alert("Network error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // --- Subscription Plan CRUD handlers ---
+  const handleAddPlanClick = () => {
+    setEditingPlanId(null);
+    setNewPlan({
+      name: "",
+      durationMonths: 12,
+      maxEmployees: 15,
+      features: "Geofences,Departments,Employees"
+    });
+    setShowPlanModal(true);
+  };
+
+  const handleEditPlanClick = (plan: SubscriptionPlan) => {
+    setEditingPlanId(plan.id);
+    setNewPlan({
+      name: plan.name,
+      durationMonths: plan.durationMonths,
+      maxEmployees: plan.maxEmployees,
+      features: plan.features
+    });
+    setShowPlanModal(true);
+  };
+
+  const handleSavePlan = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    const method = editingPlanId ? "PUT" : "POST";
+    const endpoint = editingPlanId ? `/api/subscription-plans/${editingPlanId}` : "/api/subscription-plans";
+
+    try {
+      const res = await fetch(endpoint, {
+        method: method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newPlan)
+      });
+
+      if (res.ok) {
+        setShowPlanModal(false);
+        setEditingPlanId(null);
+        setNewPlan({
+          name: "",
+          durationMonths: 12,
+          maxEmployees: 15,
+          features: "Geofences,Departments,Employees"
+        });
+        await fetchPlans();
+      } else {
+        alert("Failed to save subscription plan");
+      }
+    } catch (err) {
+      alert("Network error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeletePlan = async (id: string) => {
+    if (!confirm(lang === "ar" ? "هل أنت متأكد من حذف هذه الباقة؟ الحذف لا يؤثر على الشركات المشتركة مسبقاً." : "Are you sure you want to delete this subscription plan? Existing subscribed companies will not be affected.")) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/subscription-plans/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        await fetchPlans();
+      } else {
+        alert("Failed to delete subscription plan");
       }
     } catch (err) {
       alert("Network error");
@@ -294,22 +443,32 @@ export default function DeveloperPanel() {
             </p>
           </div>
         </div>
-        <button 
-          onClick={handleLogout}
-          className="p-3 text-red-500 hover:bg-red-500/10 rounded-2xl transition-colors flex items-center gap-2"
-        >
-          <LogOut className="w-5 h-5" />
-          <span className="font-bold text-xs uppercase tracking-widest">{lang === "ar" ? "خروج" : "Logout"}</span>
-        </button>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => setLanguage(lang === "ar" ? "en" : "ar")}
+            className="p-3 text-on-surface hover:bg-surface-container-high rounded-2xl transition-all flex items-center gap-2 border border-outline-variant cursor-pointer text-xs font-bold leading-none"
+          >
+            <Globe className="w-4 h-4 text-emerald-500" />
+            <span>{lang === "ar" ? "English" : "العربية"}</span>
+          </button>
+
+          <button 
+            onClick={handleLogout}
+            className="p-3 text-red-500 hover:bg-red-500/10 rounded-2xl transition-colors flex items-center gap-2"
+          >
+            <LogOut className="w-5 h-5" />
+            <span className="font-bold text-xs uppercase tracking-widest">{lang === "ar" ? "خروج" : "Logout"}</span>
+          </button>
+        </div>
       </header>
 
       <main className="max-w-5xl mx-auto">
         {/* Navigation Tabs */}
-        <div className="flex bg-surface-container border border-outline-variant p-1 rounded-2xl mb-8 max-w-md">
+        <div className="flex bg-surface-container border border-outline-variant p-1 rounded-2xl mb-8 max-w-xl flex-wrap">
           <button
             onClick={() => setActiveTab("dashboard")}
             className={cn(
-              "flex-1 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 cursor-pointer",
+              "flex-1 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 cursor-pointer min-w-[100px]",
               activeTab === "dashboard" 
                 ? "bg-primary text-white shadow-sm" 
                 : "text-on-surface-variant hover:text-on-surface"
@@ -321,7 +480,7 @@ export default function DeveloperPanel() {
           <button
             onClick={() => setActiveTab("companies")}
             className={cn(
-              "flex-1 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 cursor-pointer",
+              "flex-1 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 cursor-pointer min-w-[100px]",
               activeTab === "companies" 
                 ? "bg-primary text-white shadow-sm" 
                 : "text-on-surface-variant hover:text-on-surface"
@@ -333,7 +492,7 @@ export default function DeveloperPanel() {
           <button
             onClick={() => setActiveTab("ceos")}
             className={cn(
-              "flex-1 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 cursor-pointer",
+              "flex-1 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 cursor-pointer min-w-[100px]",
               activeTab === "ceos" 
                 ? "bg-primary text-white shadow-sm" 
                 : "text-on-surface-variant hover:text-on-surface"
@@ -341,6 +500,18 @@ export default function DeveloperPanel() {
           >
             <UserCheck className="w-4 h-4" />
             {lang === "ar" ? "المدراء التنفيذيين" : "CEOs"}
+          </button>
+          <button
+            onClick={() => setActiveTab("plans")}
+            className={cn(
+              "flex-1 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 cursor-pointer min-w-[100px]",
+              activeTab === "plans" 
+                ? "bg-primary text-white shadow-sm" 
+                : "text-on-surface-variant hover:text-on-surface"
+            )}
+          >
+            <Sparkles className="w-4 h-4 text-emerald-500 animate-pulse" />
+            {lang === "ar" ? "الباقات والاشتراكات" : "Plans & Packages"}
           </button>
         </div>
 
@@ -664,7 +835,7 @@ export default function DeveloperPanel() {
                         </div>
 
                         {/* Showing CEO assigned */}
-                        <div className="p-3 bg-surface-container rounded-2xl mb-6">
+                        <div className="p-3 bg-surface-container rounded-2xl mb-3">
                           <span className="text-[10px] uppercase font-bold text-on-surface-variant opacity-60 tracking-wider">
                             {lang === "ar" ? "المدير التنفيذي المعيّن" : "Assigned CEO Identifier"}
                           </span>
@@ -685,6 +856,60 @@ export default function DeveloperPanel() {
                               </span>
                             )}
                           </div>
+                        </div>
+
+                        {/* Subscription details badge */}
+                        <div className="p-4 bg-surface-container-high rounded-2xl mb-6 border border-outline-variant/30 space-y-2.5">
+                          <div className="flex justify-between items-center">
+                            <span className="text-[10px] uppercase font-black text-on-surface-variant opacity-60 tracking-wider">
+                              {lang === "ar" ? "باقة الاشتراك الفعالة" : "Active Subscription Plan"}
+                            </span>
+                            <span className={cn(
+                              "px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider",
+                              comp.features?.includes("HR_Management") 
+                                ? "bg-purple-500/15 text-purple-400 border border-purple-500/20" 
+                                : "bg-blue-500/15 text-blue-400 border border-blue-500/20"
+                            )}>
+                              {comp.planName || "Standard"}
+                            </span>
+                          </div>
+
+                          <div className="flex justify-between items-center text-xs">
+                            <span className="text-on-surface-variant opacity-80">
+                              {lang === "ar" ? "الموظفون المسجلون:" : "Enrolled Employees:"}
+                            </span>
+                            <span className="font-bold text-on-surface">
+                              {(() => {
+                                const currentCount = dashboardData?.employeeCounts?.find(ec => ec.companyId === comp.id)?.count || 0;
+                                return `${currentCount} / ${comp.maxEmployees || 15}`;
+                              })()}
+                            </span>
+                          </div>
+
+                          <div className="text-xs">
+                            <span className="text-on-surface-variant opacity-80 block mb-1">
+                              {lang === "ar" ? "المزايا والخيارات المفعلة:" : "Activated Utilities & Features:"}
+                            </span>
+                            <div className="flex flex-wrap gap-1">
+                              {comp.features ? comp.features.split(",").map(feat => (
+                                <span key={feat} className="text-[9px] font-semibold bg-surface px-2 py-0.5 rounded border border-outline-variant text-on-surface opacity-85">
+                                  {feat === "HR_Management" ? (lang === "ar" ? "إدارة الموارد البشرية والرواتب 💼" : "HR & Payroll 💼") : feat}
+                                </span>
+                              )) : (
+                                <span className="text-[9px] italic text-on-surface-variant">{lang === "ar" ? "لا توجد مزايا" : "No utilities enabled"}</span>
+                              )}
+                            </div>
+                          </div>
+
+                          {comp.subStartDate && (
+                            <div className="text-[10px] text-on-surface-variant opacity-50 flex items-center gap-1">
+                              <Calendar className="w-3 h-3" />
+                              <span>
+                                {lang === "ar" ? "تنتهي في: " : "Expires: "}
+                                {comp.subEndDate ? new Date(comp.subEndDate).toLocaleDateString(lang === "ar" ? "ar-EG" : "en-US") : "N/A"}
+                              </span>
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -804,12 +1029,111 @@ export default function DeveloperPanel() {
             </div>
           </div>
         )}
+
+        {/* --- Tab Content: Subscription Plans --- */}
+        {activeTab === "plans" && (
+          <div className="card p-8 bg-surface-container border border-outline-variant rounded-3xl animate-fade-in text-on-surface">
+            <div className="flex justify-between items-center mb-8 flex-wrap gap-4">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-6 h-6 text-emerald-500 animate-pulse" />
+                <div>
+                  <h2 className="text-xl font-bold text-on-surface">
+                    {lang === "ar" ? "إدارة باقات الخدمة والاشتراكات" : "System Subscription Packages"}
+                  </h2>
+                  <p className="text-xs text-on-surface-variant opacity-65 mt-0.5">
+                    {lang === "ar" ? "تحديد الباقات الافتراضية، حدود الموظفين، والميزات النشطة لكل باقة" : "Define default packages, employee sizes, and allowed features for subscriptions"}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={handleAddPlanClick}
+                className="btn bg-primary text-white hover:bg-primary-hover shadow-lg shadow-primary/20 flex items-center gap-2 font-bold text-sm cursor-pointer"
+              >
+                <Plus className="w-5 h-5" />
+                {lang === "ar" ? "إضافة باقة جديدة" : "Create Package"}
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {plans.length === 0 ? (
+                <div className="col-span-2 text-center py-16 border-2 border-dashed border-outline-variant rounded-3xl">
+                  <Sparkles className="w-12 h-12 text-on-surface-variant mx-auto mb-4 opacity-20" />
+                  <p className="text-on-surface-variant opacity-60">
+                    {lang === "ar" ? "لا توجد باقات خدمة معرفة حالياً. أنشئ باقة لتسهيل التعيين!" : "No subscription packages defined. Create one now!"}
+                  </p>
+                </div>
+              ) : (
+                plans.map(plan => {
+                  const hasHR = plan.features?.split(",").includes("HR_Management");
+                  return (
+                    <div key={plan.id} className="p-6 bg-surface rounded-3xl border border-outline-variant hover:border-emerald-500/40 transition-all duration-300 shadow-sm flex flex-col justify-between">
+                      <div>
+                        <div className="flex justify-between items-start mb-4">
+                          <div>
+                            <span className="text-[10px] uppercase font-black tracking-widest text-emerald-500 block mb-1">
+                              {lang === "ar" ? "تعريف باقة الخدمة" : "Service Module Level"}
+                            </span>
+                            <h3 className="text-lg font-bold text-on-surface">{plan.name}</h3>
+                          </div>
+                          <span className={cn(
+                            "px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider",
+                            hasHR ? "bg-purple-500/15 text-purple-400 border border-purple-500/20" : "bg-blue-500/15 text-blue-400 border border-blue-500/20"
+                          )}>
+                            {hasHR ? (lang === "ar" ? "شامل الموارد البشرية ✨" : "HR Premium Included ✨") : (lang === "ar" ? "أساسية (بدون شؤون موظفين)" : "Standard Features")}
+                          </span>
+                        </div>
+
+                        <div className="space-y-3 my-6 text-sm">
+                          <div className="flex justify-between border-b border-outline-variant/30 pb-2">
+                            <span className="text-on-surface-variant opacity-70">{lang === "ar" ? "مدة الاشتراك:" : "Duration Months:"}</span>
+                            <span className="font-bold">{plan.durationMonths} {lang === "ar" ? "شهر" : "Months"}</span>
+                          </div>
+                          <div className="flex justify-between border-b border-outline-variant/30 pb-2">
+                            <span className="text-on-surface-variant opacity-70">{lang === "ar" ? "الحد الأقصى للموظفين:" : "Allowed Employee Cap:"}</span>
+                            <span className="font-bold text-emerald-400">{plan.maxEmployees} {lang === "ar" ? "موظف" : "Employees"}</span>
+                          </div>
+                          <div>
+                            <span className="text-xs text-on-surface-variant opacity-70 block mb-2">{lang === "ar" ? "الميزات والخيارات المرفقة بالباقة:" : "Permitted Module Features:"}</span>
+                            <div className="flex flex-wrap gap-1.5">
+                              {plan.features?.split(",").map(feat => (
+                                <span key={feat} className="text-[10px] font-semibold bg-surface-container px-2 py-0.5 rounded border border-outline-variant text-on-surface">
+                                  {feat === "HR_Management" ? (lang === "ar" ? "الموارد البشرية والرواتب 💼" : "HR & Payroll 💼") : feat}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-outline-variant/30 mt-4">
+                        <button
+                          onClick={() => handleEditPlanClick(plan)}
+                          className="px-3 py-1.5 text-xs text-secondary bg-secondary-container/20 hover:bg-secondary-container transition-all rounded-xl font-bold flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <Edit3 className="w-3 h-3" />
+                          <span>{lang === "ar" ? "تعديل" : "Edit"}</span>
+                        </button>
+                        <button
+                          onClick={() => handleDeletePlan(plan.id)}
+                          className="px-3 py-1.5 text-xs text-red-500 bg-red-500/10 hover:bg-red-500 hover:text-white transition-all rounded-xl font-bold flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          <span>{lang === "ar" ? "حذف" : "Remove"}</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        )}
       </main>
 
       {/* --- MODAL 1: Company Creation / Edit --- */}
       {showCompanyModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-          <div className="card w-full max-w-md p-8 bg-surface-container shadow-2xl relative border border-primary/30">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto">
+          <div className="card w-full max-w-md p-8 bg-surface-container shadow-2xl relative border border-primary/30 max-h-[90vh] overflow-y-auto text-on-surface">
             <button 
               onClick={() => setShowCompanyModal(false)}
               className="absolute top-6 right-6 text-on-surface-variant hover:text-on-surface"
@@ -839,7 +1163,7 @@ export default function DeveloperPanel() {
                   <span className="bg-surface-container-high px-3 py-2.5 text-xs font-semibold text-on-surface-variant">@</span>
                   <input 
                     type="text" 
-                    className="flex-1 bg-transparent px-3 py-2 text-sm outline-none font-bold" 
+                    className="flex-1 bg-transparent px-3 py-2 text-sm outline-none font-bold text-on-surface" 
                     value={newCompany.domain}
                     onChange={(e) => setNewCompany({ ...newCompany, domain: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") })}
                     placeholder="peace"
@@ -868,10 +1192,111 @@ export default function DeveloperPanel() {
                   )}
                 </div>
               </div>
+
+              {/* Package and Subscription Selections */}
+              <div className="border-t border-outline-variant/30 pt-4 space-y-4">
+                <h4 className="font-bold text-xs uppercase tracking-wider text-emerald-400">
+                  {lang === "ar" ? "بيانات وقنوات الاشتراك" : "Subscription Panel Credentials"}
+                </h4>
+
+                <div>
+                  <label className="input-label font-bold text-xs">{lang === "ar" ? "اختر باقة اشتراك جاهزة" : "Pre-defined Plan Preset"}</label>
+                  <select
+                    value={newCompany.planName}
+                    onChange={(e) => {
+                      const selectedPlan = plans.find(p => p.name === e.target.value);
+                      if (selectedPlan) {
+                        setNewCompany({
+                          ...newCompany,
+                          planName: selectedPlan.name,
+                          maxEmployees: selectedPlan.maxEmployees,
+                          features: selectedPlan.features,
+                          subDurationMonths: selectedPlan.durationMonths
+                        });
+                      } else {
+                        setNewCompany({ ...newCompany, planName: e.target.value });
+                      }
+                    }}
+                    className="input-field mt-1.5 font-bold text-sm bg-surface-container-high border border-outline rounded-xl py-2 px-3 text-on-surface w-full"
+                  >
+                    <option value="">{lang === "ar" ? "اختر باقة..." : "Select plan..."}</option>
+                    {plans.map(p => (
+                      <option key={p.id} value={p.name}>{p.name} ({p.maxEmployees} slots, {p.durationMonths}M)</option>
+                    ))}
+                    <option value="Custom">{lang === "ar" ? "مخصصة / Custom" : "Custom Plan..."}</option>
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="input-label font-bold text-xs">{lang === "ar" ? "الحد الأقصى للموظفين" : "Employee Capacity"}</label>
+                    <input
+                      type="number"
+                      min="1"
+                      className="input-field mt-1.5"
+                      value={newCompany.maxEmployees}
+                      onChange={(e) => setNewCompany({ ...newCompany, maxEmployees: parseInt(e.target.value) || 15 })}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="input-label font-bold text-xs">{lang === "ar" ? "فترة الاشتراك (شهور)" : "Duration (Months)"}</label>
+                    <input
+                      type="number"
+                      min="1"
+                      className="input-field mt-1.5"
+                      value={newCompany.subDurationMonths}
+                      onChange={(e) => setNewCompany({ ...newCompany, subDurationMonths: parseInt(e.target.value) || 12 })}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="input-label font-bold text-xs">{lang === "ar" ? "تاريخ بدء الاشتراك" : "Subscription Start Date"}</label>
+                  <input
+                    type="date"
+                    className="input-field mt-1.5"
+                    value={newCompany.subStartDate}
+                    onChange={(e) => setNewCompany({ ...newCompany, subStartDate: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="input-label font-bold text-xs block mb-2">{lang === "ar" ? "ميزات الباقة المسموح بها" : "Enabled Features List"}</label>
+                  <div className="space-y-2 border border-outline-variant p-3.5 rounded-2xl bg-surface-container-high/60">
+                    {[
+                      { id: "Employees", label: lang === "ar" ? "إدارة الموظفين والملفات" : "Employee Management" },
+                      { id: "Departments", label: lang === "ar" ? "إدارة الأقسام والمدراء" : "Department Management" },
+                      { id: "Geofences", label: lang === "ar" ? "الحواجز الجغرافية (Geofences)" : "Geofencing Control" },
+                      { id: "HR_Management", label: lang === "ar" ? "إدارة الموارد البشرية والرواتب (بريميوم)" : "HR Payroll Management (Premium)" }
+                    ].map(feat => {
+                      const isChecked = newCompany.features?.split(",").includes(feat.id);
+                      return (
+                        <label key={feat.id} className="flex items-center gap-2.5 text-xs font-semibold cursor-pointer text-on-surface">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => {
+                              const list = newCompany.features ? newCompany.features.split(",") : [];
+                              const newList = list.includes(feat.id) ? list.filter(x => x !== feat.id) : [...list, feat.id];
+                              setNewCompany({ ...newCompany, features: newList.join(",") });
+                            }}
+                            className="w-4 h-4 accent-primary cursor-pointer"
+                          />
+                          <span>{feat.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
               <button 
                 type="submit" 
                 disabled={loading}
-                className="btn-primary w-full mt-6 flex items-center justify-center gap-2"
+                className="btn-primary w-full mt-6 flex items-center justify-center gap-2 cursor-pointer"
               >
                 {loading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Building2 className="w-5 h-5" />}
                 {editingCompanyId 
@@ -1312,6 +1737,104 @@ export default function DeveloperPanel() {
                 {lang === "ar" ? "إغلاق التفاصيل" : "Close Portal Details"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- MODAL 5: Subscription Plan Creation / Edit --- */}
+      {showPlanModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto">
+          <div className="card w-full max-w-md p-8 bg-surface-container shadow-2xl relative border border-emerald-500/30 text-on-surface max-h-[90vh] overflow-y-auto">
+            <button 
+              onClick={() => setShowPlanModal(false)}
+              className="absolute top-6 right-6 text-on-surface-variant hover:text-on-surface"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            <h3 className="text-xl font-bold text-on-surface mb-6 flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-emerald-400" />
+              {editingPlanId 
+                ? (lang === "ar" ? "تعديل باقة الاشتراك" : "Edit Subscription Preset")
+                : (lang === "ar" ? "تأسيس باقة اشتراك جديدة" : "Provision New Preset")}
+            </h3>
+            <form onSubmit={handleSavePlan} className="space-y-4">
+              <div>
+                <label className="input-label font-bold text-xs">{lang === "ar" ? "اسم الباقة / التسمية الترويجية" : "Package & Plan Name"}</label>
+                <input 
+                  type="text" 
+                  className="input-field mt-1.5" 
+                  value={newPlan.name}
+                  onChange={(e) => setNewPlan({ ...newPlan, name: e.target.value })}
+                  placeholder={lang === "ar" ? "الباقة الذهبية / بريميوم" : "Enterprise Premium"}
+                  required 
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="input-label font-bold text-xs">{lang === "ar" ? "فترة الباقة بالشهور" : "Duration (Months)"}</label>
+                  <input 
+                    type="number" 
+                    min="1"
+                    className="input-field mt-1.5" 
+                    value={newPlan.durationMonths}
+                    onChange={(e) => setNewPlan({ ...newPlan, durationMonths: parseInt(e.target.value) || 12 })}
+                    required 
+                  />
+                </div>
+                <div>
+                  <label className="input-label font-bold text-xs">{lang === "ar" ? "سعة الموظفين للمنشأة" : "Employee Slots"}</label>
+                  <input 
+                    type="number" 
+                    min="1"
+                    className="input-field mt-1.5" 
+                    value={newPlan.maxEmployees}
+                    onChange={(e) => setNewPlan({ ...newPlan, maxEmployees: parseInt(e.target.value) || 15 })}
+                    required 
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="input-label font-bold text-xs block mb-2">{lang === "ar" ? "ميزات الباقة المدمجة" : "Bundled Module Features"}</label>
+                <div className="space-y-2.5 border border-outline-variant p-3.5 rounded-2xl bg-surface-container-high/60">
+                  {[
+                    { id: "Employees", label: lang === "ar" ? "إدارة الموظفين والملفات" : "Employee Management" },
+                    { id: "Departments", label: lang === "ar" ? "إدارة الأقسام والمدراء" : "Department Management" },
+                    { id: "Geofences", label: lang === "ar" ? "الحواجز الجغرافية (Geofences)" : "Geofencing Control" },
+                    { id: "HR_Management", label: lang === "ar" ? "إدارة الموارد البشرية والرواتب (شؤون الموظفين)" : "HR Payroll Management (Premium)" }
+                  ].map(feat => {
+                    const isChecked = newPlan.features?.split(",").includes(feat.id);
+                    return (
+                      <label key={feat.id} className="flex items-center gap-2.5 text-xs font-semibold cursor-pointer text-on-surface">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => {
+                            const list = newPlan.features ? newPlan.features.split(",") : [];
+                            const newList = list.includes(feat.id) ? list.filter(x => x !== feat.id) : [...list, feat.id];
+                            setNewPlan({ ...newPlan, features: newList.join(",") });
+                          }}
+                          className="w-4 h-4 accent-emerald-500 cursor-pointer"
+                        />
+                        <span>{feat.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <button 
+                type="submit" 
+                disabled={loading}
+                className="btn-primary w-full mt-6 bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-2 cursor-pointer text-white border-none"
+              >
+                {loading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Sparkles className="w-5 h-5" />}
+                {editingPlanId 
+                  ? (lang === "ar" ? "حفظ تعديلات الباقة" : "Save Plan configurations")
+                  : (lang === "ar" ? "تأسيس الباقة وتعميمها" : "Publish Package Preset")}
+              </button>
+            </form>
           </div>
         </div>
       )}

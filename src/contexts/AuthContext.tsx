@@ -7,6 +7,11 @@ interface User {
   name: string;
   avatar?: string;
   department?: string;
+  companyId?: string;
+  companyName?: string;
+  planName?: string;
+  maxEmployees?: number;
+  features?: string;
 }
 
 interface AuthContextType {

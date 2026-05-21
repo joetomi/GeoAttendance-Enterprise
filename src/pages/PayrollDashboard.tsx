@@ -78,11 +78,38 @@ interface DisciplinaryWarning {
 }
 
 export default function PayrollDashboard() {
+  const { lang, t } = useLanguage();
+  const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
+
+  const featuresList = currentUser.features ? currentUser.features.split(",") : ["Geofences", "Departments", "Employees"];
+  const isHRAllowed = currentUser.role === "dev" || featuresList.includes("HR_Management");
+
+  if (!isHRAllowed) {
+    return (
+      <div className="min-h-screen bg-surface bg-stars p-8 flex items-center justify-center animate-fade-in" dir={lang === "ar" ? "rtl" : "ltr"}>
+        <div className="card max-w-lg w-full p-10 bg-surface-container border border-outline-variant rounded-3xl text-center shadow-2xl relative">
+          <div className="w-20 h-20 bg-amber-500/10 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-8 border border-amber-500/20">
+            <ShieldAlert className="w-10 h-10 animate-pulse text-amber-500" />
+          </div>
+          <h2 className="text-2xl font-black text-on-surface mb-4">
+            {lang === "ar" ? "إدارة الموارد البشرية غير متوفرة" : "HR Management Not Available"}
+          </h2>
+          <p className="text-on-surface-variant mb-8 leading-relaxed text-sm">
+            {lang === "ar" 
+              ? "مزايا إدارة الموارد البشرية والرواتب والعهد والتقييمات تقتصر على الباقة البريميوم (Premium Plan). الرجاء التواصل مع مدير النظام لترقية اشتراك شركتك." 
+              : "Human Resource management, payroll deductions, company asset tracking, and ratings are premium-tier features. Please contact your system administrator to upgrade your subscription plan."}
+          </p>
+          <div className="mt-2 text-xs text-on-surface-variant font-mono opacity-60">
+            {lang === "ar" ? "الباقة الحالية: باقة أساسية" : `Current Plan: ${currentUser.planName || "Standard Plan"}`}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>("");
   const [loading, setLoading] = useState(false);
-  const { lang, t } = useLanguage();
-  const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
 
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ type: "success" | "error", text: string } | null>(null);
