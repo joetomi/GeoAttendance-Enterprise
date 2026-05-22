@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Plus, Trash2, Shield, UserCheck, X, LogOut, Edit3, Building2, Globe, Sparkles, Search, Calendar, Users, TrendingUp, Activity, BarChart3, Clock } from "lucide-react";
+import { Plus, Trash2, Shield, UserCheck, X, LogOut, Edit3, Building2, Globe, Sparkles, Search, Calendar, Users, TrendingUp, Activity, BarChart3, Clock, Loader2, Check } from "lucide-react";
 import { 
   BarChart, 
   Bar, 
@@ -80,6 +80,39 @@ export default function DeveloperPanel() {
     avatar: "",
     companyId: ""
   });
+
+  const [ceoUsernameChecking, setCeoUsernameChecking] = useState(false);
+  const [isCeoUsernameAvailable, setIsCeoUsernameAvailable] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const rawUser = newCeo.username.trim();
+    if (rawUser.length === 0) {
+      setIsCeoUsernameAvailable(null);
+      setCeoUsernameChecking(false);
+      return;
+    }
+
+    const delayDebounceFn = setTimeout(async () => {
+      setCeoUsernameChecking(true);
+      try {
+        const url = `/api/employees/check-username?username=${encodeURIComponent(rawUser)}${editingCeoId ? `&excludeId=${encodeURIComponent(editingCeoId)}` : ""}`;
+        const res = await fetch(url);
+        if (res.ok) {
+          const data = await res.json();
+          setIsCeoUsernameAvailable(data.available);
+        } else {
+          setIsCeoUsernameAvailable(false);
+        }
+      } catch (err) {
+        console.error("Checking CEO username failed:", err);
+        setIsCeoUsernameAvailable(false);
+      } finally {
+        setCeoUsernameChecking(false);
+      }
+    }, 450);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [newCeo.username, editingCeoId]);
 
   // Company Modal State
   const [showCompanyModal, setShowCompanyModal] = useState(false);
@@ -1270,6 +1303,7 @@ export default function DeveloperPanel() {
                       { id: "Employees", label: lang === "ar" ? "إدارة الموظفين والملفات" : "Employee Management" },
                       { id: "Departments", label: lang === "ar" ? "إدارة الأقسام والمدراء" : "Department Management" },
                       { id: "Geofences", label: lang === "ar" ? "الحواجز الجغرافية (Geofences)" : "Geofencing Control" },
+                      { id: "Multi_Geofence", label: lang === "ar" ? "تعدد نطاقات البصمة الجغرافية (Premium)" : "Multi-Geofence Scope (Enterprise)" },
                       { id: "HR_Management", label: lang === "ar" ? "إدارة الموارد البشرية والرواتب (بريميوم)" : "HR Payroll Management (Premium)" }
                     ].map(feat => {
                       const isChecked = newCompany.features?.split(",").includes(feat.id);
@@ -1352,13 +1386,42 @@ export default function DeveloperPanel() {
 
               <div>
                 <label className="input-label font-bold text-xs">{lang === "ar" ? "اسم مدير الحساب للتشغيل" : "Username"}</label>
-                <input 
-                  type="text" 
-                  className="input-field mt-1.5" 
-                  value={newCeo.username}
-                  onChange={(e) => setNewCeo({ ...newCeo, username: e.target.value.toLowerCase().replace(/[^a-z0-9]/g, "") })}
-                  required 
-                />
+                <div className="relative animate-fade-in">
+                  <input 
+                    type="text" 
+                    className={cn(
+                      "input-field mt-1.5",
+                      lang === "ar" ? "pl-24" : "pr-24"
+                    )} 
+                    value={newCeo.username}
+                    onChange={(e) => setNewCeo({ ...newCeo, username: e.target.value.toLowerCase().replace(/[^a-z0-9_.-]/g, "") })}
+                    placeholder={lang === "ar" ? "مثال: saleh_ceo" : "e.g., saleh_ceo"}
+                    required 
+                  />
+                  <div className={cn(
+                    "absolute top-1/2 -translate-y-1/2 mt-0.5 flex items-center gap-1.5",
+                    lang === "ar" ? "left-3 flex-row-reverse" : "right-3"
+                  )}>
+                    {ceoUsernameChecking && (
+                      <div className="flex items-center gap-1 text-primary text-[10px] font-bold bg-primary/10 px-2 py-0.5 rounded-lg border border-primary/20">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>{lang === "ar" ? "جاري الفحص..." : "Checking..."}</span>
+                      </div>
+                    )}
+                    {!ceoUsernameChecking && isCeoUsernameAvailable === true && newCeo.username.trim() !== "" && (
+                      <div className="flex items-center gap-1 text-emerald-500 text-[10px] font-bold bg-emerald-500/10 px-2 py-1 rounded-lg border border-emerald-500/20">
+                        <Check className="w-3.5 h-3.5" />
+                        <span>{lang === "ar" ? "صالح ✓" : "Valid ✓"}</span>
+                      </div>
+                    )}
+                    {!ceoUsernameChecking && isCeoUsernameAvailable === false && newCeo.username.trim() !== "" && (
+                      <div className="flex items-center gap-1 text-red-500 text-[10px] font-bold bg-red-500/10 px-2 py-1 rounded-lg border border-red-500/20">
+                        <X className="w-3.5 h-3.5 text-red-500" />
+                        <span>{lang === "ar" ? "مأخوذ ✗" : "Taken ✗"}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
               <div>
                 <label className="input-label font-bold text-xs">{lang === "ar" ? "مفتاح الأمان (كلمة المرور)" : "Security Key (Password)"}</label>
@@ -1392,13 +1455,36 @@ export default function DeveloperPanel() {
               </div>
               <button 
                 type="submit" 
-                disabled={loading}
-                className="btn-primary w-full mt-6 flex items-center justify-center gap-2"
+                disabled={loading || ceoUsernameChecking || (newCeo.username.trim() !== "" && isCeoUsernameAvailable === false)}
+                className={cn(
+                  "btn-primary w-full mt-6 flex items-center justify-center gap-2 cursor-pointer",
+                  (loading || ceoUsernameChecking || (newCeo.username.trim() !== "" && isCeoUsernameAvailable === false))
+                    ? "bg-outline-variant text-on-surface-variant cursor-not-allowed opacity-50"
+                    : ""
+                )}
               >
-                {loading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <UserCheck className="w-5 h-5" />}
-                {editingCeoId 
-                  ? (lang === "ar" ? "تحديث التخويل" : "Apply Credentials")
-                  : (lang === "ar" ? "تأكيد التخويل والتعيين" : "Authorize President credentials")}
+                {loading ? (
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : ceoUsernameChecking ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin text-emerald-300" />
+                    <span>{lang === "ar" ? "جاري التحقق من اسم المستخدم..." : "Verifying username..."}</span>
+                  </>
+                ) : (newCeo.username.trim() !== "" && isCeoUsernameAvailable === false) ? (
+                  <>
+                    <X className="w-4 h-4 text-red-400" />
+                    <span>{lang === "ar" ? "اسم المستخدم مأخوذ كلياً" : "Username is taken"}</span>
+                  </>
+                ) : (
+                  <>
+                    <UserCheck className="w-5 h-5" />
+                    <span>
+                      {editingCeoId 
+                        ? (lang === "ar" ? "تحديث التخويل" : "Apply Credentials")
+                        : (lang === "ar" ? "تأكيد التخويل والتعيين" : "Authorize President credentials")}
+                    </span>
+                  </>
+                )}
               </button>
             </form>
           </div>
@@ -1802,6 +1888,7 @@ export default function DeveloperPanel() {
                     { id: "Employees", label: lang === "ar" ? "إدارة الموظفين والملفات" : "Employee Management" },
                     { id: "Departments", label: lang === "ar" ? "إدارة الأقسام والمدراء" : "Department Management" },
                     { id: "Geofences", label: lang === "ar" ? "الحواجز الجغرافية (Geofences)" : "Geofencing Control" },
+                    { id: "Multi_Geofence", label: lang === "ar" ? "تعدد نطاقات البصمة الجغرافية (Premium)" : "Multi-Geofence Scope (Enterprise)" },
                     { id: "HR_Management", label: lang === "ar" ? "إدارة الموارد البشرية والرواتب (شؤون الموظفين)" : "HR Payroll Management (Premium)" }
                   ].map(feat => {
                     const isChecked = newPlan.features?.split(",").includes(feat.id);

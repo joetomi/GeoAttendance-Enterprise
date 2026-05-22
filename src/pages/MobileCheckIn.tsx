@@ -19,6 +19,12 @@ export default function MobileCheckIn() {
   const [showLangMenu, setShowLangMenu] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
+  // Verification mode state and timers
+  const [isVerifyLocationMode, setIsVerifyLocationMode] = useState<boolean>(false);
+  const [verificationStep, setVerificationStep] = useState<'idle' | 'countdown' | 'ready_second' | 'saving'>('idle');
+  const [countdown, setCountdown] = useState<number>(20);
+  const [firstLocation, setFirstLocation] = useState<{ lat: number; lng: number; time: string } | null>(null);
+
   const handleLangChange = (l: Language) => {
     setLanguage(l);
     setShowLangMenu(false);
@@ -33,6 +39,11 @@ export default function MobileCheckIn() {
         if (data.status) {
           setCurrentMode(data.status);
           setInZone(data.status === 'In');
+        }
+        if (data.assignedGeofenceId === "verify_location") {
+          setIsVerifyLocationMode(true);
+        } else {
+          setIsVerifyLocationMode(false);
         }
       })
       .catch(err => console.error("Status fetch failed:", err));
@@ -49,6 +60,9 @@ export default function MobileCheckIn() {
         return;
       }
       setUser(u);
+      if (u.assignedGeofenceId === "verify_location") {
+        setIsVerifyLocationMode(true);
+      }
       fetchStatus(u.id, u.companyId);
     } else {
       navigate("/login");
@@ -74,9 +88,143 @@ export default function MobileCheckIn() {
     navigate("/");
   };
 
+  // Countdown Timer for two-point verification
+  useEffect(() => {
+    let timer: any;
+    if (verificationStep === 'countdown' && countdown > 0) {
+      timer = setTimeout(() => {
+        setCountdown(prev => prev - 1);
+      }, 1000);
+    } else if (verificationStep === 'countdown' && countdown === 0) {
+      setVerificationStep('ready_second');
+    }
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [verificationStep, countdown]);
+
+  const startTwoPointVerification = () => {
+    if (!navigator.geolocation) {
+      setLocationError(lang === "ar" ? "تحديد الموقع الجغرافي غير مدعوم في متصفحك" : "Geolocation discovery not supported by this browser");
+      setStatus('error');
+      return;
+    }
+
+    setStatus('checking');
+    setLocationError(null);
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        setFirstLocation({
+          lat: latitude,
+          lng: longitude,
+          time: new Date().toISOString()
+        });
+        
+        // Go to countdown step
+        setStatus('idle');
+        setCountdown(20);
+        setVerificationStep('countdown');
+      },
+      (err) => {
+        let errorMsg = err.message;
+        if (lang === "ar") {
+          if (err.code === 1) errorMsg = "تم رفض الوصول إلى الموقع";
+          else if (err.code === 2) errorMsg = "الموقع غير متاح";
+          else if (err.code === 3) errorMsg = "انتهت مهلة الحصول على الموقع";
+        }
+        setLocationError(errorMsg);
+        setStatus('error');
+        setVerificationStep('idle');
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  };
+
+  const submitSecondPoint = () => {
+    if (!firstLocation) {
+      setVerificationStep('idle');
+      return;
+    }
+
+    setVerificationStep('saving');
+    setStatus('checking');
+    setLocationError(null);
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        const secondPoint = {
+          lat: latitude,
+          lng: longitude,
+          time: new Date().toISOString()
+        };
+
+        const endpoint = "/api/attendance/check-in";
+        
+        fetch(endpoint, {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json",
+            "X-Company-Id": user?.companyId || ""
+          },
+          body: JSON.stringify({
+            employeeId: user.id,
+            lat: latitude,
+            lng: longitude,
+            isDoubleVerification: true,
+            loc1: firstLocation,
+            loc2: secondPoint
+          })
+        })
+        .then(async (res) => {
+          const data = await res.json();
+          if (res.ok && data.success) {
+            setStatus('success');
+            setCurrentMode('In');
+            setInZone(true);
+            setVerificationStep('idle');
+            setFirstLocation(null);
+          } else {
+            setStatus('error');
+            setVerificationStep('idle');
+            setLocationError(data.message || data.error || "Verification failed");
+          }
+        })
+        .catch((err) => {
+          console.error("Network error during double location attendance:", err);
+          setStatus('error');
+          setVerificationStep('idle');
+          setLocationError(lang === "ar" ? "فشل الاتصال بالشبكة" : "Network connection error");
+        });
+      },
+      (err) => {
+        let errorMsg = err.message;
+        if (lang === "ar") {
+          if (err.code === 1) errorMsg = "تم رفض الوصول إلى الموقع";
+          else if (err.code === 2) errorMsg = "الموقع غير متاح";
+          else if (err.code === 3) errorMsg = "انتهت مهلة الحصول على الموقع";
+        }
+        setLocationError(errorMsg);
+        setStatus('error');
+        setVerificationStep('idle');
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  };
+
   const startVerification = () => {
     if (!user) return;
-    handleAction();
+    if (isVerifyLocationMode && currentMode === 'Out') {
+      if (verificationStep === 'ready_second') {
+        submitSecondPoint();
+      } else {
+        startTwoPointVerification();
+      }
+    } else {
+      handleAction();
+    }
   };
 
   const handleAction = () => {
@@ -179,33 +327,85 @@ export default function MobileCheckIn() {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 1.1, opacity: 0 }}
               onClick={startVerification}
+              disabled={isVerifyLocationMode && currentMode === "Out" && verificationStep === "countdown"}
               className={cn(
                 "relative w-64 h-64 rounded-full flex flex-col items-center justify-center shadow-2xl active:scale-95 transition-all group overflow-hidden",
-                currentMode === 'Out' 
-                  ? "bg-emerald-600/10 border-4 border-emerald-500/20 shadow-emerald-500/10" 
-                  : "bg-amber-600/10 border-4 border-amber-500/20 shadow-amber-500/10"
+                isVerifyLocationMode && currentMode === "Out"
+                  ? verificationStep === "countdown"
+                    ? "bg-amber-600/5 border-4 border-amber-500/20 shadow-amber-500/5 cursor-not-allowed opacity-80"
+                    : verificationStep === "ready_second"
+                      ? "bg-amber-500/20 border-4 border-amber-400/50 shadow-amber-400/20 animate-pulse border-dashed"
+                      : "bg-amber-600/10 border-4 border-amber-500/20 shadow-amber-500/10"
+                  : currentMode === 'Out' 
+                    ? "bg-emerald-600/10 border-4 border-emerald-500/20 shadow-emerald-500/10" 
+                    : "bg-amber-600/10 border-4 border-amber-500/20 shadow-amber-500/10"
               )}
             >
               <div className={cn(
                 "absolute inset-0 opacity-40 transition-opacity duration-700 group-hover:opacity-60",
-                currentMode === 'Out' 
-                  ? "bg-[radial-gradient(circle_at_center,var(--color-emerald-500)_0%,transparent_70%)]" 
-                  : "bg-[radial-gradient(circle_at_center,var(--color-amber-500)_0%,transparent_70%)]"
+                isVerifyLocationMode && currentMode === "Out"
+                  ? "bg-[radial-gradient(circle_at_center,var(--color-amber-500)_0%,transparent_70%)]"
+                  : currentMode === 'Out' 
+                    ? "bg-[radial-gradient(circle_at_center,var(--color-emerald-500)_0%,transparent_70%)]" 
+                    : "bg-[radial-gradient(circle_at_center,var(--color-amber-500)_0%,transparent_70%)]"
               )} />
               
-              <Fingerprint className={cn(
-                "w-24 h-24 mb-6 transition-all duration-500",
-                currentMode === 'Out' ? "text-emerald-500" : "text-amber-500"
-              )} />
-              
-              <span className="text-[10px] font-black uppercase tracking-[0.3em] z-10">
-                {currentMode === 'Out' ? t.tapToCheckIn : t.tapToCheckOut}
-              </span>
+              {isVerifyLocationMode && currentMode === "Out" ? (
+                verificationStep === "countdown" ? (
+                  <div className="flex flex-col items-center justify-center z-10 animate-pulse text-center px-4">
+                    <span className="text-4xl font-extrabold text-amber-400 font-mono mb-2">{countdown}s</span>
+                    <span className="text-[11px] font-bold text-amber-300 uppercase tracking-wider mb-2">
+                      {lang === "ar" ? "تحرك على الطريق الآن" : "Move on the road now"}
+                    </span>
+                    <span className="text-[9px] text-white/50 leading-snug">
+                      {lang === "ar" ? "الرجاء المضي قدماً للتأكد من خروجك للعمل" : "Keep moving to verify travel start"}
+                    </span>
+                  </div>
+                ) : verificationStep === "ready_second" ? (
+                  <div className="flex flex-col items-center justify-center z-10 text-center px-4">
+                    <MapPin className="w-16 h-16 text-amber-400 animate-bounce mb-4" />
+                    <span className="text-xs font-black uppercase tracking-wider text-amber-400 mb-1">
+                      {lang === "ar" ? "اضغط لإرسال الموقع الثاني" : "Tap to send 2nd location"}
+                    </span>
+                    <span className="text-[9px] text-white/70">
+                      {lang === "ar" ? "وتأكيد بدء الحضور والعمل" : "and confirm travel start"}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center z-10 text-center px-4">
+                    <div className="relative">
+                      <Fingerprint className="w-16 h-16 text-amber-500 mb-4" />
+                      <MapPin className="w-6 h-6 text-amber-400 absolute -bottom-1 -right-1 animate-pulse" />
+                    </div>
+                    <span className="text-xs font-black uppercase tracking-wider text-amber-300 mb-1 leading-snug">
+                      {lang === "ar" ? "إرسال الموقع الحالي والتحرك" : "Send current location & verify"}
+                    </span>
+                    <span className="text-[9px] text-white/50 tracking-wider">
+                      {lang === "ar" ? "(تحقق ثنائي الموقع)" : "(Dual Point Verification)"}
+                    </span>
+                  </div>
+                )
+              ) : (
+                <>
+                  <Fingerprint className={cn(
+                    "w-24 h-24 mb-6 transition-all duration-500",
+                    currentMode === 'Out' ? "text-emerald-500" : "text-amber-500"
+                  )} />
+                  
+                  <span className="text-[10px] font-black uppercase tracking-[0.3em] z-10">
+                    {currentMode === 'Out' ? t.tapToCheckIn : t.tapToCheckOut}
+                  </span>
+                </>
+              )}
               
               {/* Animated rings */}
               <div className={cn(
                 "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-72 rounded-full border-2 animate-ping",
-                currentMode === 'Out' ? "border-emerald-500/20" : "border-amber-500/20"
+                isVerifyLocationMode && currentMode === "Out"
+                  ? "border-amber-500/20"
+                  : currentMode === 'Out' 
+                    ? "border-emerald-500/20" 
+                    : "border-amber-500/20"
               )} />
             </motion.button>
           )}
@@ -290,23 +490,46 @@ export default function MobileCheckIn() {
         </p>
       </div>
 
-      <div className="w-full bg-white/5 border border-white/10 rounded-3xl p-4 flex items-center gap-4 mb-2 shadow-sm bg-pattern-wavy">
-        <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center overflow-hidden grayscale">
-          <img 
-            src="https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?q=80&w=200&auto=format&fit=crop" 
-            alt="HQ" 
-            className="w-full h-full object-cover"
-          />
-        </div>
-        <div className="flex-1">
-          <p className="text-sm font-bold text-on-surface">{geofence?.name || "Loading..."}</p>
-          <div className="flex items-center gap-2">
-            <div className={cn("w-1.5 h-1.5 rounded-full", currentMode === 'In' ? "bg-emerald-500" : "bg-white/20")} />
-            <p className={cn("text-[10px] uppercase font-bold tracking-wider", currentMode === 'In' ? "text-emerald-500" : "text-on-surface-variant")}>{t.activePerimeter}</p>
+      {isVerifyLocationMode ? (
+        <div className="w-full bg-amber-500/10 border border-amber-500/20 rounded-3xl p-5 flex items-center gap-4 mb-2 shadow-sm relative overflow-hidden">
+          <div className="absolute right-0 top-0 w-24 h-24 bg-amber-500/5 rounded-full blur-xl -mr-6 -mt-6 pointer-events-none" />
+          <div className="w-12 h-12 bg-amber-500/20 rounded-2xl flex items-center justify-center text-amber-400">
+            <MapPin className="w-6 h-6 animate-pulse" />
           </div>
+          <div className="flex-1">
+            <p className="text-sm font-bold text-amber-300">
+              {lang === "ar" ? "التحقق من موقع الموظف ثنائيا" : "Travel Verification Active"}
+            </p>
+            <div className="flex items-center gap-2 mt-0.5">
+              <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shadow-[0_0_6px_var(--color-amber-400)]" />
+              <p className="text-[10px] uppercase font-bold tracking-wider text-amber-400/80">
+                {lang === "ar" ? "مسار التحقق ثنائي الإحداثيات (20 ثانية)" : "Dual GPS Coordinate Track (20s)"}
+              </p>
+            </div>
+          </div>
+          <p className="text-xs font-bold text-amber-400">
+            {lang === "ar" ? "مفعل" : "Active"}
+          </p>
         </div>
-        <p className="text-xs font-bold">{geofence?.radius || 0}m Radius</p>
-      </div>
+      ) : (
+        <div className="w-full bg-white/5 border border-white/10 rounded-3xl p-4 flex items-center gap-4 mb-2 shadow-sm bg-pattern-wavy">
+          <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center overflow-hidden grayscale">
+            <img 
+              src="https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?q=80&w=200&auto=format&fit=crop" 
+              alt="HQ" 
+              className="w-full h-full object-cover"
+            />
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-bold text-on-surface">{geofence?.name || "Loading..."}</p>
+            <div className="flex items-center gap-2">
+              <div className={cn("w-1.5 h-1.5 rounded-full", currentMode === 'In' ? "bg-emerald-500" : "bg-white/20")} />
+              <p className={cn("text-[10px] uppercase font-bold tracking-wider", currentMode === 'In' ? "text-emerald-500" : "text-on-surface-variant")}>{t.activePerimeter}</p>
+            </div>
+          </div>
+          <p className="text-xs font-bold">{geofence?.radius || 0}m Radius</p>
+        </div>
+      )}
 
       <AnimatePresence>
         {showLogoutConfirm && (

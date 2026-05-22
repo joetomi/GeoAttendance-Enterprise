@@ -14,10 +14,12 @@ import {
   Globe,
   ChevronDown,
   Check,
-  Building2
+  Building2,
+  Crown
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
+import toast from "react-hot-toast";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useNotifications } from "../contexts/NotificationContext";
 import { useAuth } from "../contexts/AuthContext";
@@ -44,18 +46,44 @@ export function MobileMenu({ isOpen, onClose }: { isOpen: boolean; onClose: () =
   const isCeoOrDev = user?.role === "ceo" || user?.role === "dev";
   const isAdmin = user?.role === "admin" || user?.role === "ceo";
   const featuresList = user?.features ? user.features.split(",") : ["Geofences", "Departments", "Employees"];
-  const isHRAllowed = user?.role === "dev" || featuresList.includes("HR_Management");
+  const hasEmployees = user?.role === "dev" || featuresList.includes("Employees");
+  const hasDepartments = user?.role === "dev" || featuresList.includes("Departments");
+  const hasGeofences = user?.role === "dev" || featuresList.includes("Geofences");
+  const hasHR = user?.role === "dev" || featuresList.includes("HR_Management");
 
   const navItems = [
     ...(isAdmin ? [
-      { icon: Users, label: t.navEmployees, path: "/admin" },
-      { icon: Building2, label: t.navDepartments, path: "/departments" },
-      ...(isCeoOrDev ? [{ icon: MapPin, label: t.navGeofence, path: "/geofence" }] : []),
-      ...(isHRAllowed ? [{ icon: Wallet, label: t.navPayroll, path: "/payroll" }] : []),
+      { icon: Users, label: t.navEmployees, path: "/admin", locked: !hasEmployees },
+      { icon: Building2, label: t.navDepartments, path: "/departments", locked: !hasDepartments },
+      ...(isCeoOrDev ? [{ icon: MapPin, label: t.navGeofence, path: "/geofence", locked: !hasGeofences }] : []),
+      { icon: Wallet, label: t.navPayroll, path: "/payroll", locked: !hasHR },
     ] : [
-      { icon: MapPin, label: lang === "ar" ? "تسجيل الحضور" : "Check In", path: "/check-in" },
+      { icon: MapPin, label: lang === "ar" ? "تسجيل الحضور" : "Check In", path: "/check-in", locked: false },
     ]),
   ];
+
+  const handleLockedClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    toast((toastId) => (
+      <span className="flex items-center gap-2.5 font-bold text-xs leading-5">
+        <Crown className="w-5 h-5 text-amber-500 shrink-0" />
+        <span>
+          {lang === "ar" 
+            ? "طور باقتك واشترك في باقة تفتح هذه الميزة" 
+            : "Upgrade your subscription and subscribe to a plan that unlocks this feature"}
+        </span>
+      </span>
+    ), {
+      duration: 4000,
+      style: {
+        borderRadius: '16px',
+        background: '#1e293b',
+        color: '#fff',
+        border: '1px solid rgba(245, 158, 11, 0.3)'
+      }
+    });
+  };
 
   return (
     <>
@@ -97,6 +125,24 @@ export function MobileMenu({ isOpen, onClose }: { isOpen: boolean; onClose: () =
               <nav className="flex-1 flex flex-col mt-4">
                 {navItems.map((item) => {
                   const isActive = location.pathname === item.path;
+
+                  if (item.locked) {
+                    return (
+                      <button
+                        key={item.path}
+                        onClick={handleLockedClick}
+                        className={cn(
+                          "w-full flex items-center gap-3 px-6 py-4 transition-all duration-200 border-primary border-transparent text-white/30 hover:bg-white/5 hover:text-white/40 cursor-pointer",
+                          lang === "ar" ? "text-right flex-row-reverse justify-end" : "text-left justify-start"
+                        )}
+                      >
+                        <item.icon className="w-5 h-5 opacity-40 shrink-0" />
+                        <span className="text-sm font-medium">{item.label}</span>
+                        <Crown className="w-4 h-4 text-amber-400 shrink-0 animate-pulse ms-auto" />
+                      </button>
+                    );
+                  }
+
                   return (
                     <Link
                       key={item.path}
@@ -109,7 +155,7 @@ export function MobileMenu({ isOpen, onClose }: { isOpen: boolean; onClose: () =
                           : "border-transparent text-white/50 hover:bg-white/5 hover:text-white"
                       )}
                     >
-                      <item.icon className="w-5 h-5" />
+                      <item.icon className="w-5 h-5 shrink-0" />
                       <span className="text-sm font-medium">{item.label}</span>
                     </Link>
                   );
@@ -204,18 +250,44 @@ export function Sidebar({ className }: SidebarProps) {
   const isCeoOrDev = user?.role === "ceo" || user?.role === "dev";
   const isAdmin = user?.role === "admin" || user?.role === "ceo";
   const featuresList = user?.features ? user.features.split(",") : ["Geofences", "Departments", "Employees"];
-  const isHRAllowed = user?.role === "dev" || featuresList.includes("HR_Management");
+  const hasEmployees = user?.role === "dev" || featuresList.includes("Employees");
+  const hasDepartments = user?.role === "dev" || featuresList.includes("Departments");
+  const hasGeofences = user?.role === "dev" || featuresList.includes("Geofences");
+  const hasHR = user?.role === "dev" || featuresList.includes("HR_Management");
 
   const navItems = [
     ...(isAdmin ? [
-      { icon: Users, label: t.navEmployees, path: "/admin" },
-      { icon: Building2, label: t.navDepartments, path: "/departments" },
-      ...(isCeoOrDev ? [{ icon: MapPin, label: t.navGeofence, path: "/geofence" }] : []),
-      ...(isHRAllowed ? [{ icon: Wallet, label: t.navPayroll, path: "/payroll" }] : []),
+      { icon: Users, label: t.navEmployees, path: "/admin", locked: !hasEmployees },
+      { icon: Building2, label: t.navDepartments, path: "/departments", locked: !hasDepartments },
+      ...(isCeoOrDev ? [{ icon: MapPin, label: t.navGeofence, path: "/geofence", locked: !hasGeofences }] : []),
+      { icon: Wallet, label: t.navPayroll, path: "/payroll", locked: !hasHR },
     ] : [
-      { icon: MapPin, label: lang === "ar" ? "تسجيل الحضور" : "Check In", path: "/check-in" },
+      { icon: MapPin, label: lang === "ar" ? "تسجيل الحضور" : "Check In", path: "/check-in", locked: false },
     ]),
   ];
+
+  const handleLockedClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    toast((toastId) => (
+      <span className="flex items-center gap-2.5 font-bold text-xs leading-5">
+        <Crown className="w-5 h-5 text-amber-500 shrink-0" />
+        <span>
+          {lang === "ar" 
+            ? "طور باقتك واشترك في باقة تفتح هذه الميزة" 
+            : "Upgrade your subscription and subscribe to a plan that unlocks this feature"}
+        </span>
+      </span>
+    ), {
+      duration: 4000,
+      style: {
+        borderRadius: '16px',
+        background: '#1e293b',
+        color: '#fff',
+        border: '1px solid rgba(245, 158, 11, 0.3)'
+      }
+    });
+  };
 
   return (
     <>
@@ -237,6 +309,24 @@ export function Sidebar({ className }: SidebarProps) {
         <nav className="flex-1 flex flex-col mt-4">
           {navItems.map((item) => {
             const isActive = location.pathname === item.path;
+
+            if (item.locked) {
+              return (
+                <button
+                  key={item.path}
+                  onClick={handleLockedClick}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-6 py-4 transition-all duration-200 border-primary border-transparent text-white/30 hover:bg-white/5 hover:text-white/40 cursor-pointer",
+                    lang === "ar" ? "text-right flex-row-reverse justify-end" : "text-left justify-start"
+                  )}
+                >
+                  <item.icon className="w-5 h-5 opacity-40 shrink-0" />
+                  <span className="text-sm font-medium">{item.label}</span>
+                  <Crown className="w-4 h-4 text-amber-400 shrink-0 animate-pulse ms-auto" />
+                </button>
+              );
+            }
+
             return (
               <Link
                 key={item.path}
@@ -248,7 +338,7 @@ export function Sidebar({ className }: SidebarProps) {
                     : "border-transparent text-white/50 hover:bg-white/5 hover:text-white"
                 )}
               >
-                <item.icon className="w-5 h-5" />
+                <item.icon className="w-5 h-5 shrink-0" />
                 <span className="text-sm font-medium">{item.label}</span>
               </Link>
             );

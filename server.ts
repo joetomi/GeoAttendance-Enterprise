@@ -73,6 +73,18 @@ async function getPool() {
         IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Employees') AND name = 'companyId')
           EXEC('ALTER TABLE Employees ADD companyId NVARCHAR(50)');
 
+        IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Employees') AND name = 'assignedGeofenceId')
+          EXEC('ALTER TABLE Employees ADD assignedGeofenceId NVARCHAR(100)');
+
+        -- Ensure assignedGeofenceId is NVARCHAR(1000) for supporting multiple geofence selection
+        BEGIN TRY
+          EXEC('ALTER TABLE Employees ALTER COLUMN assignedGeofenceId NVARCHAR(1000)');
+        END TRY
+        BEGIN CATCH
+          -- ignore if alter fails due to any environment constraints
+          PRINT 'NVARCHAR(1000) column alter done or skipped';
+        END CATCH
+
         -- 3. Core structural tables
         IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='Geofence' AND xtype='U')
         BEGIN
@@ -109,6 +121,15 @@ async function getPool() {
         IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('AttendanceLogs') AND name = 'companyId')
           EXEC('ALTER TABLE AttendanceLogs ADD companyId NVARCHAR(50)');
 
+        IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('AttendanceLogs') AND name = 'latitude')
+          EXEC('ALTER TABLE AttendanceLogs ADD latitude FLOAT');
+
+        IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('AttendanceLogs') AND name = 'longitude')
+          EXEC('ALTER TABLE AttendanceLogs ADD longitude FLOAT');
+
+        IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('AttendanceLogs') AND name = 'geofenceName')
+          EXEC('ALTER TABLE AttendanceLogs ADD geofenceName NVARCHAR(100)');
+
         IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='Notifications' AND xtype='U')
         BEGIN
           CREATE TABLE Notifications (
@@ -134,6 +155,9 @@ async function getPool() {
 
         IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Departments') AND name = 'companyId')
           EXEC('ALTER TABLE Departments ADD companyId NVARCHAR(50)');
+
+        IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Departments') AND name = 'assignedGeofenceId')
+          EXEC('ALTER TABLE Departments ADD assignedGeofenceId NVARCHAR(1000)');
 
         -- New Company table
         IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='Companies' AND xtype='U')
@@ -221,7 +245,7 @@ async function getPool() {
 
         EXEC('
           IF NOT EXISTS (SELECT * FROM Geofence WHERE companyId = ''comp-default'')
-            INSERT INTO Geofence (latitude, longitude, radius, name, startTime, endTime, companyId) VALUES (34.0522, -118.2437, 200, ''HQ Main Entrance'', ''08:00'', ''17:00'', ''comp-default'');
+            INSERT INTO Geofence (latitude, longitude, radius, name, startTime, endTime, companyId) VALUES (32.374332461501005, 15.090419235262685, 200, ''HQ Main Entrance'', ''08:00'', ''17:00'', ''comp-default'');
         ');
 
         -- Use dynamic SQL to check and insert admin to avoid "Invalid column name 'role'" during batch compile
@@ -396,6 +420,37 @@ async function startServer() {
     }
   });
 
+  app.get("/api/employees/check-username", async (req, res) => {
+    const db = await getPool();
+    const { username, excludeId } = req.query;
+    if (!username) {
+      return res.json({ available: true });
+    }
+    const cleanUser = String(username).toLowerCase().trim();
+    if (cleanUser === "joetomi" || cleanUser === "dev") {
+      return res.json({ available: false });
+    }
+    if (!db) {
+      const taken = ["sarah", "marcus", "admin", "dev", "ceo", "joetomi"].includes(cleanUser);
+      return res.json({ available: !taken });
+    }
+    try {
+      let query = "SELECT id FROM Employees WHERE username = @username";
+      const request = db.request().input("username", sql.NVarChar, String(username).trim());
+      
+      if (excludeId && String(excludeId).trim() !== "") {
+        request.input("excludeId", sql.NVarChar, String(excludeId).trim());
+        query += " AND id <> @excludeId";
+      }
+      
+      const result = await request.query(query);
+      res.json({ available: result.recordset.length === 0 });
+    } catch (err) {
+      console.error("Username check error:", err);
+      res.status(500).json({ error: "Failed to check username uniqueness" });
+    }
+  });
+
   app.get("/api/employees", async (req, res) => {
     const db = await getPool();
     if (!db) {
@@ -420,8 +475,23 @@ async function startServer() {
     const db = await getPool();
     if (!db) return res.status(503).json({ error: "Database not connected" });
     
-    const { name, email, department, status, avatar, username, password, role, requesterRole } = req.body;
+    const { name, email, department, status, avatar, username, password, role, requesterRole, assignedGeofenceId } = req.body;
     const companyId = req.headers["x-company-id"] || req.query.companyId || req.body.companyId || "comp-default";
+
+    let finalAssignedGeofenceId = assignedGeofenceId;
+    if (db && department && department.trim() !== "") {
+      try {
+        const deptRes = await db.request()
+          .input("deptName", sql.NVarChar, department)
+          .input("companyId", sql.NVarChar, companyId)
+          .query("SELECT assignedGeofenceId FROM Departments WHERE name = @deptName AND companyId = @companyId");
+        if (deptRes.recordset.length > 0 && deptRes.recordset[0].assignedGeofenceId !== undefined) {
+          finalAssignedGeofenceId = deptRes.recordset[0].assignedGeofenceId;
+        }
+      } catch (deptErr) {
+        console.error("Failed to fetch department geofence for auto-assignment:", deptErr);
+      }
+    }
 
     // Guard CEO role: Only dev can create CEO
     if (role === "ceo" && requesterRole !== "dev") {
@@ -429,6 +499,14 @@ async function startServer() {
     }
 
     // 1. Username uniqueness check database-wide
+    const cleanUser = String(username || "").toLowerCase().trim();
+    if (cleanUser === "joetomi" || cleanUser === "dev") {
+      return res.status(400).json({
+        error: "هذا الاسم مستخدم للمطور ولا يمكن حجزه! الرجاء اختيار اسم آخر.",
+        errorEn: "This username belongs to the developer and is reserved. Please choose another username."
+      });
+    }
+
     try {
       const usernameCheck = await db.request()
         .input("username", sql.NVarChar, username)
@@ -482,9 +560,10 @@ async function startServer() {
       .input("status", sql.NVarChar, status)
       .input("avatar", sql.NVarChar(sql.MAX), avatar)
       .input("companyId", sql.NVarChar, companyId)
-      .query("INSERT INTO Employees (id, name, username, password, role, email, department, status, avatar, companyId) VALUES (@id, @name, @username, @password, @role, @email, @department, @status, @avatar, @companyId)");
+      .input("assignedGeofenceId", sql.NVarChar, finalAssignedGeofenceId || null)
+      .query("INSERT INTO Employees (id, name, username, password, role, email, department, status, avatar, companyId, assignedGeofenceId) VALUES (@id, @name, @username, @password, @role, @email, @department, @status, @avatar, @companyId, @assignedGeofenceId)");
     
-    res.status(201).json({ id, name, username, role, email, department, status, avatar, companyId });
+    res.status(201).json({ id, name, username, role, email, department, status, avatar, companyId, assignedGeofenceId: finalAssignedGeofenceId });
   });
 
   app.delete("/api/employees/:id", async (req, res) => {
@@ -533,23 +612,53 @@ async function startServer() {
   app.get("/api/geofence", async (req, res) => {
     const db = await getPool();
     const companyId = req.headers["x-company-id"] || req.query.companyId || "comp-default";
-    if (!db) return res.json({ latitude: 34.0522, longitude: -118.2437, radius: 200, name: "HQ Main Entrance", startTime: "08:00", endTime: "17:00", companyId });
+    if (!db) return res.json({ latitude: 32.374332461501005, longitude: 15.090419235262685, radius: 200, name: "HQ Main Entrance", startTime: "08:00", endTime: "17:00", companyId });
     
-    const result = await db.request()
-      .input("companyId", sql.NVarChar, companyId)
-      .query("SELECT TOP 1 * FROM Geofence WHERE companyId = @companyId");
-    if (result.recordset.length > 0) {
-      res.json({
-        latitude: 34.0522,
-        longitude: -118.2437,
-        radius: 200,
-        name: "HQ Main Entrance",
-        startTime: "08:00",
-        endTime: "17:00",
-        ...result.recordset[0]
-      });
-    } else {
-      res.json({ latitude: 34.0522, longitude: -118.2437, radius: 200, name: "HQ Main Entrance", startTime: "08:00", endTime: "17:00", companyId });
+    try {
+      const result = await db.request()
+        .input("companyId", sql.NVarChar, companyId)
+        .query("SELECT * FROM Geofence WHERE companyId = @companyId");
+      if (result.recordset.length > 0) {
+        res.json({
+          latitude: 32.374332461501005,
+          longitude: 15.090419235262685,
+          radius: 200,
+          name: "HQ Main Entrance",
+          startTime: "08:00",
+          endTime: "17:00",
+          ...result.recordset[0]
+        });
+      } else {
+        res.json({ latitude: 32.374332461501005, longitude: 15.090419235262685, radius: 200, name: "HQ Main Entrance", startTime: "08:00", endTime: "17:00", companyId });
+      }
+    } catch (err) {
+      console.error("Geofence load error:", err);
+      res.json({ latitude: 32.374332461501005, longitude: 15.090419235262685, radius: 200, name: "HQ Main Entrance", startTime: "08:00", endTime: "17:00", companyId });
+    }
+  });
+
+  app.get("/api/geofence/list", async (req, res) => {
+    const db = await getPool();
+    const companyId = req.headers["x-company-id"] || req.query.companyId || "comp-default";
+    if (!db) {
+       return res.json([
+        { id: 1, latitude: 32.374332461501005, longitude: 15.090419235262685, radius: 200, name: "HQ Main Entrance", startTime: "08:00", endTime: "17:00", companyId }
+      ]);
+    }
+    try {
+      const result = await db.request()
+        .input("companyId", sql.NVarChar, companyId)
+        .query("SELECT * FROM Geofence WHERE companyId = @companyId ORDER BY id ASC");
+      if (result.recordset.length > 0) {
+        res.json(result.recordset);
+      } else {
+        res.json([
+          { id: 1, latitude: 32.374332461501005, longitude: 15.090419235262685, radius: 200, name: "HQ Main Entrance", startTime: "08:00", endTime: "17:00", companyId }
+        ]);
+      }
+    } catch (err) {
+      console.error("Geofence list error:", err);
+      res.status(500).json({ error: "Failed to load geofence list" });
     }
   });
 
@@ -557,29 +666,62 @@ async function startServer() {
     const db = await getPool();
     if (!db) return res.status(503).json({ error: "Database not connected" });
     
-    const { latitude, longitude, radius, name, startTime, endTime } = req.body;
+    const { id, latitude, longitude, radius, name, startTime, endTime } = req.body;
     const companyId = req.headers["x-company-id"] || req.query.companyId || "comp-default";
     try {
-      // Robust Upsert for Geofence
-      await db.request()
-        .input("lat", sql.Float, latitude)
-        .input("lng", sql.Float, longitude)
-        .input("rad", sql.Float, radius)
-        .input("name", sql.NVarChar, name)
-        .input("start", sql.NVarChar, startTime || "08:00")
-        .input("end", sql.NVarChar, endTime || "17:00")
-        .input("companyId", sql.NVarChar, companyId)
-        .query(`
-          IF EXISTS (SELECT 1 FROM Geofence WHERE companyId = @companyId)
-            UPDATE Geofence SET latitude = @lat, longitude = @lng, radius = @rad, name = @name, startTime = @start, endTime = @end WHERE companyId = @companyId;
-          ELSE
-            INSERT INTO Geofence (latitude, longitude, radius, name, startTime, endTime, companyId) VALUES (@lat, @lng, @rad, @name, @start, @end, @companyId);
-        `);
+      if (id && String(id).trim() !== "" && !String(id).startsWith("temp_")) {
+        // Update existing geofence by id
+        await db.request()
+          .input("id", sql.Int, parseInt(id))
+          .input("lat", sql.Float, latitude)
+          .input("lng", sql.Float, longitude)
+          .input("rad", sql.Float, radius)
+          .input("name", sql.NVarChar, name)
+          .input("start", sql.NVarChar, startTime || "08:00")
+          .input("end", sql.NVarChar, endTime || "17:00")
+          .input("companyId", sql.NVarChar, companyId)
+          .query(`
+            UPDATE Geofence SET latitude = @lat, longitude = @lng, radius = @rad, name = @name, startTime = @start, endTime = @end 
+            WHERE id = @id AND companyId = @companyId
+          `);
+      } else {
+        // Create new
+        await db.request()
+          .input("lat", sql.Float, latitude)
+          .input("lng", sql.Float, longitude)
+          .input("rad", sql.Float, radius)
+          .input("name", sql.NVarChar, name)
+          .input("start", sql.NVarChar, startTime || "08:00")
+          .input("end", sql.NVarChar, endTime || "17:00")
+          .input("companyId", sql.NVarChar, companyId)
+          .query(`
+            INSERT INTO Geofence (latitude, longitude, radius, name, startTime, endTime, companyId) 
+            VALUES (@lat, @lng, @rad, @name, @start, @end, @companyId)
+          `);
+      }
       
-      res.json({ latitude, longitude, radius, name, startTime: startTime || "08:00", endTime: endTime || "17:00", companyId });
+      res.json({ success: true, message: "Geofence config saved" });
     } catch (err) {
       console.error("Geofence update failed:", err);
       res.status(500).json({ error: "Failed to update configuration" });
+    }
+  });
+
+  app.delete("/api/geofence/:id", async (req, res) => {
+    const db = await getPool();
+    if (!db) return res.status(503).json({ error: "Database not connected" });
+    const companyId = req.headers["x-company-id"] || req.query.companyId || "comp-default";
+    const { id } = req.params;
+    
+    try {
+      await db.request()
+        .input("id", sql.Int, parseInt(id))
+        .input("companyId", sql.NVarChar, companyId)
+        .query("DELETE FROM Geofence WHERE id = @id AND companyId = @companyId");
+      res.json({ success: true, message: "Geofence deleted" });
+    } catch (err) {
+      console.error("Geofence delete failed:", err);
+      res.status(500).json({ error: "Failed to delete" });
     }
   });
 
@@ -823,66 +965,162 @@ async function startServer() {
 
   app.get("/api/attendance/status/:employeeId", async (req, res) => {
     const db = await getPool();
-    if (!db) return res.json({ status: "Out", note: "Demo Mode" });
+    if (!db) return res.json({ status: "Out", note: "Demo Mode", assignedGeofenceId: "" });
     
     try {
+      const empResult = await db.request()
+        .input("employeeId", sql.NVarChar, req.params.employeeId)
+        .query("SELECT assignedGeofenceId FROM Employees WHERE id = @employeeId");
+
+      const assignedGeofenceId = empResult.recordset.length > 0 ? empResult.recordset[0].assignedGeofenceId : "";
+
       const result = await db.request()
         .input("employeeId", sql.NVarChar, req.params.employeeId)
         .query("SELECT TOP 1 status FROM AttendanceLogs WHERE employeeId = @employeeId ORDER BY timestamp DESC");
       
       if (result.recordset.length > 0) {
-        res.json({ status: result.recordset[0].status });
+        res.json({ status: result.recordset[0].status, assignedGeofenceId });
       } else {
-        res.json({ status: "Out" });
+        res.json({ status: "Out", assignedGeofenceId });
       }
     } catch (err) {
       console.error("Status fetch failed:", err);
-      res.json({ status: "Out", error: "DB Error" });
+      res.json({ status: "Out", error: "DB Error", assignedGeofenceId: "" });
     }
   });
 
   app.post("/api/attendance/check-in", async (req, res) => {
     const db = await getPool();
-    const { employeeId, lat, lng } = req.body;
+    const { employeeId, lat, lng, isDoubleVerification, loc1, loc2 } = req.body;
 
     let companyId = "comp-default";
-    let geofence = { startTime: "08:00", endTime: "17:00", latitude: 34.0522, longitude: -118.2437, radius: 200, name: "HQ Main Entrance" };
+    let assignedGeofenceId: string | null = null;
+    let fallbackGeofence = { startTime: "08:00", endTime: "17:00", latitude: 32.374332461501005, longitude: 15.090419235262685, radius: 200, name: "HQ Main Entrance" };
     
     if (db) {
        try {
-         const empRes = await db.request().input("empId", sql.NVarChar, employeeId).query("SELECT companyId FROM Employees WHERE id = @empId");
-         if (empRes.recordset.length > 0 && empRes.recordset[0].companyId) {
-           companyId = empRes.recordset[0].companyId;
+         const empRes = await db.request().input("empId", sql.NVarChar, employeeId).query("SELECT companyId, assignedGeofenceId FROM Employees WHERE id = @empId");
+         if (empRes.recordset.length > 0) {
+           if (empRes.recordset[0].companyId) companyId = empRes.recordset[0].companyId;
+           if (empRes.recordset[0].assignedGeofenceId) assignedGeofenceId = empRes.recordset[0].assignedGeofenceId;
          }
        } catch (err) {
          console.error("Failed to find employee company during check-in:", err);
        }
-
-       try {
-         const fenceRes = await db.request().input("companyId", sql.NVarChar, companyId).query("SELECT TOP 1 * FROM Geofence WHERE companyId = @companyId");
-         if (fenceRes.recordset.length > 0) {
-           geofence = { ...geofence, ...fenceRes.recordset[0] };
-         }
-       } catch (err) {
-         console.error("Failed to fetch geofence for check-in:", err);
-       }
     }
 
-    if (!isTimeWithinWorkingHours(geofence.startTime, geofence.endTime)) {
-      return res.status(400).json({ success: false, message: "بصمه خارج وقت العمل" });
+    // Handle verification location model (double point check-in)
+    if (isDoubleVerification || assignedGeofenceId === "verify_location") {
+      const id1 = Math.random().toString(36).substr(2, 9);
+      const id2 = Math.random().toString(36).substr(2, 9);
+
+      const lat1 = loc1 && loc1.lat ? loc1.lat : (lat ? lat - 0.0003 : 32.3743);
+      const lng1 = loc1 && loc1.lng ? loc1.lng : (lng ? lng - 0.0003 : 15.0904);
+      const time1 = loc1 && loc1.time ? new Date(loc1.time) : new Date(Date.now() - 20000);
+
+      const lat2 = loc2 && loc2.lat ? loc2.lat : (lat || 32.3743);
+      const lng2 = loc2 && loc2.lng ? loc2.lng : (lng || 15.0904);
+      const time2 = loc2 && loc2.time ? new Date(loc2.time) : new Date();
+
+      const name1 = "التحقق الثنائي (موقع 1/2) | Double Loc (1/2)";
+      const name2 = "التحقق الثنائي (موقع 2/2) | Double Loc (2/2)";
+
+      if (db) {
+        try {
+          // Log Point 1
+          await db.request()
+            .input("id", sql.NVarChar, id1)
+            .input("employeeId", sql.NVarChar, employeeId)
+            .input("timestamp", sql.DateTimeOffset, time1)
+            .input("status", sql.NVarChar, "In")
+            .input("companyId", sql.NVarChar, companyId)
+            .input("lat", sql.Float, lat1)
+            .input("lng", sql.Float, lng1)
+            .input("gfName", sql.NVarChar, name1)
+            .query("INSERT INTO AttendanceLogs (id, employeeId, timestamp, status, companyId, latitude, longitude, geofenceName) VALUES (@id, @employeeId, @timestamp, @status, @companyId, @lat, @lng, @gfName)");
+
+          // Log Point 2
+          await db.request()
+            .input("id", sql.NVarChar, id2)
+            .input("employeeId", sql.NVarChar, employeeId)
+            .input("timestamp", sql.DateTimeOffset, time2)
+            .input("status", sql.NVarChar, "In")
+            .input("companyId", sql.NVarChar, companyId)
+            .input("lat", sql.Float, lat2)
+            .input("lng", sql.Float, lng2)
+            .input("gfName", sql.NVarChar, name2)
+            .query("INSERT INTO AttendanceLogs (id, employeeId, timestamp, status, companyId, latitude, longitude, geofenceName) VALUES (@id, @employeeId, @timestamp, @status, @companyId, @lat, @lng, @gfName)");
+
+          return res.json({ success: true, isDouble: true, log: { id: id2, employeeId, timestamp: time2, status: "In", companyId, geofenceName: name2 } });
+        } catch (dbErr) {
+          console.error("Double verification database insert failed:", dbErr);
+          return res.status(500).json({ error: "Failed to record double-location verification logs" });
+        }
+      } else {
+        return res.json({ success: true, isDouble: true, log: { id: id2, employeeId, timestamp: time2, status: "In", companyId, geofenceName: name2 } });
+      }
     }
 
     if (!db) {
       // Mock success for demo
-      return res.json({ success: true, log: { id: "demo_"+Date.now(), employeeId, timestamp: new Date(), status: "In", companyId } });
+      return res.json({ success: true, log: { id: "demo_"+Date.now(), employeeId, timestamp: new Date(), status: "In", companyId, geofenceName: "HQ Main Entrance" } });
     }
 
     try {
-      const distanceMeter = calculateHaversineDistance(geofence.latitude, geofence.longitude, lat, lng);
+      let geofences = [];
+      if (assignedGeofenceId && String(assignedGeofenceId).trim() !== "") {
+        try {
+          const gfIds = String(assignedGeofenceId)
+            .split(",")
+            .map(x => parseInt(x.trim(), 10))
+            .filter(x => !isNaN(x));
 
-      if (distanceMeter <= geofence.radius) {
+          if (gfIds.length > 0) {
+            const queryStr = `SELECT * FROM Geofence WHERE id IN (${gfIds.join(",")})`;
+            const multipleFenceRes = await db.request().query(queryStr);
+            if (multipleFenceRes.recordset.length > 0) {
+              geofences = multipleFenceRes.recordset;
+            }
+          }
+        } catch (fenceFetchErr) {
+          console.error("Failed to load assigned geofences:", fenceFetchErr);
+        }
+      }
+      
+      if (geofences.length === 0) {
+        const fenceRes = await db.request().input("companyId", sql.NVarChar, companyId).query("SELECT * FROM Geofence WHERE companyId = @companyId");
+        geofences = fenceRes.recordset.length > 0 ? fenceRes.recordset : [fallbackGeofence];
+      }
+
+      let matchedGeofence = null;
+      let minDistance = Infinity;
+      let checkedFencesMsg: string[] = [];
+
+      for (const gf of geofences) {
+        const gfLat = gf.latitude || 32.374332461501005;
+        const gfLng = gf.longitude || 15.090419235262685;
+        const gfRad = gf.radius || 200;
+        const d = calculateHaversineDistance(gfLat, gfLng, lat, lng);
+        const name = gf.name || "Fence";
+        checkedFencesMsg.push(`${name}: ${Math.round(d)}m (max ${gfRad}m)`);
+        
+        if (d <= gfRad) {
+          if (!matchedGeofence || d < minDistance) {
+            matchedGeofence = gf;
+            minDistance = d;
+          }
+        }
+      }
+
+      if (matchedGeofence) {
+        // Find whether working hours match
+        if (!isTimeWithinWorkingHours(matchedGeofence.startTime || "08:00", matchedGeofence.endTime || "17:00")) {
+          return res.status(400).json({ success: false, message: "بصمه خارج وقت العمل" });
+        }
+
         const id = Math.random().toString(36).substr(2, 9);
         const timestamp = new Date();
+        const gfName = matchedGeofence.name || "Main Geofence";
         
         await db.request()
           .input("id", sql.NVarChar, id)
@@ -890,11 +1128,18 @@ async function startServer() {
           .input("timestamp", sql.DateTimeOffset, timestamp)
           .input("status", sql.NVarChar, "In")
           .input("companyId", sql.NVarChar, companyId)
-          .query("INSERT INTO AttendanceLogs (id, employeeId, timestamp, status, companyId) VALUES (@id, @employeeId, @timestamp, @status, @companyId)");
+          .input("lat", sql.Float, lat)
+          .input("lng", sql.Float, lng)
+          .input("gfName", sql.NVarChar, gfName)
+          .query("INSERT INTO AttendanceLogs (id, employeeId, timestamp, status, companyId, latitude, longitude, geofenceName) VALUES (@id, @employeeId, @timestamp, @status, @companyId, @lat, @lng, @gfName)");
 
-        res.json({ success: true, log: { id, employeeId, timestamp, status: "In", companyId } });
+        res.json({ success: true, log: { id, employeeId, timestamp, status: "In", companyId, geofenceName: gfName } });
       } else {
-        res.status(400).json({ success: false, message: `Outside geofence area (Distance: ${Math.round(distanceMeter)}m)` });
+        const arFences = checkedFencesMsg.map(msg => msg.replace("max", "الحد الأقصى").replace("Fence", "نطاق B").replace("Distance", "المسافة"));
+        res.status(400).json({ 
+          success: false, 
+          message: `خارج النطاق الجغرافي المحدد للبصمة. المسافات: ${arFences.join(" | ")}` 
+        });
       }
     } catch (err) {
       console.error("Check-in error:", err);
@@ -907,32 +1152,28 @@ async function startServer() {
     const { employeeId, lat, lng } = req.body;
 
     let companyId = "comp-default";
-    let geofence = { startTime: "08:00", endTime: "17:00", latitude: 34.0522, longitude: -118.2437, radius: 200, name: "HQ Main Entrance" };
+    let assignedGeofenceId: string | null = null;
+    let fallbackGeofence = { startTime: "08:00", endTime: "17:00", latitude: 32.374332461501005, longitude: 15.090419235262685, radius: 200, name: "HQ Main Entrance" };
 
     if (!db) {
-       return res.json({ success: true, log: { id: "demo_"+Date.now(), employeeId, timestamp: new Date(), status: "Out", companyId } });
+       return res.json({ success: true, log: { id: "demo_"+Date.now(), employeeId, timestamp: new Date(), status: "Out", companyId, geofenceName: "HQ Main Entrance" } });
     }
 
     try {
       try {
-        const empRes = await db.request().input("empId", sql.NVarChar, employeeId).query("SELECT companyId FROM Employees WHERE id = @empId");
-        if (empRes.recordset.length > 0 && empRes.recordset[0].companyId) {
-          companyId = empRes.recordset[0].companyId;
+        const empRes = await db.request().input("empId", sql.NVarChar, employeeId).query("SELECT companyId, assignedGeofenceId FROM Employees WHERE id = @empId");
+        if (empRes.recordset.length > 0) {
+          if (empRes.recordset[0].companyId) companyId = empRes.recordset[0].companyId;
+          if (empRes.recordset[0].assignedGeofenceId) assignedGeofenceId = empRes.recordset[0].assignedGeofenceId;
         }
       } catch (err) {
         console.error("Failed to find employee company during check-out:", err);
       }
 
-      const fenceRes = await db.request().input("companyId", sql.NVarChar, companyId).query("SELECT TOP 1 * FROM Geofence WHERE companyId = @companyId");
-      if (fenceRes.recordset.length > 0) {
-        geofence = { ...geofence, ...fenceRes.recordset[0] };
-      }
-
-      const distanceMeter = calculateHaversineDistance(geofence.latitude, geofence.longitude, lat, lng);
-
-      if (distanceMeter <= geofence.radius) {
+      if (assignedGeofenceId === "verify_location") {
         const id = Math.random().toString(36).substr(2, 9);
         const timestamp = new Date();
+        const gfName = "تسجيل الخروج المباشر | Direct Checkout";
         
         await db.request()
           .input("id", sql.NVarChar, id)
@@ -940,11 +1181,82 @@ async function startServer() {
           .input("timestamp", sql.DateTimeOffset, timestamp)
           .input("status", sql.NVarChar, "Out")
           .input("companyId", sql.NVarChar, companyId)
-          .query("INSERT INTO AttendanceLogs (id, employeeId, timestamp, status, companyId) VALUES (@id, @employeeId, @timestamp, @status, @companyId)");
+          .input("lat", sql.Float, lat || 32.3743)
+          .input("lng", sql.Float, lng || 15.0904)
+          .input("gfName", sql.NVarChar, gfName)
+          .query("INSERT INTO AttendanceLogs (id, employeeId, timestamp, status, companyId, latitude, longitude, geofenceName) VALUES (@id, @employeeId, @timestamp, @status, @companyId, @lat, @lng, @gfName)");
 
-        res.json({ success: true, log: { id, employeeId, timestamp, status: "Out", companyId } });
+        return res.json({ success: true, log: { id, employeeId, timestamp, status: "Out", companyId, geofenceName: gfName } });
+      }
+
+      let geofences = [];
+      if (assignedGeofenceId && String(assignedGeofenceId).trim() !== "") {
+        try {
+          const gfIds = String(assignedGeofenceId)
+            .split(",")
+            .map(x => parseInt(x.trim(), 10))
+            .filter(x => !isNaN(x));
+
+          if (gfIds.length > 0) {
+            const queryStr = `SELECT * FROM Geofence WHERE id IN (${gfIds.join(",")})`;
+            const multipleFenceRes = await db.request().query(queryStr);
+            if (multipleFenceRes.recordset.length > 0) {
+              geofences = multipleFenceRes.recordset;
+            }
+          }
+        } catch (fenceFetchErr) {
+          console.error("Failed to load assigned geofence status during check-out, fallback:", fenceFetchErr);
+        }
+      }
+      
+      if (geofences.length === 0) {
+        const fenceRes = await db.request().input("companyId", sql.NVarChar, companyId).query("SELECT * FROM Geofence WHERE companyId = @companyId");
+        geofences = fenceRes.recordset.length > 0 ? fenceRes.recordset : [fallbackGeofence];
+      }
+
+      let matchedGeofence = null;
+      let minDistance = Infinity;
+      let checkedFencesMsg: string[] = [];
+
+      for (const gf of geofences) {
+        const gfLat = gf.latitude || 32.374332461501005;
+        const gfLng = gf.longitude || 15.090419235262685;
+        const gfRad = gf.radius || 200;
+        const d = calculateHaversineDistance(gfLat, gfLng, lat, lng);
+        const name = gf.name || "Fence";
+        checkedFencesMsg.push(`${name}: ${Math.round(d)}m (max ${gfRad}m)`);
+        
+        if (d <= gfRad) {
+          if (!matchedGeofence || d < minDistance) {
+            matchedGeofence = gf;
+            minDistance = d;
+          }
+        }
+      }
+
+      if (matchedGeofence) {
+        const id = Math.random().toString(36).substr(2, 9);
+        const timestamp = new Date();
+        const gfName = matchedGeofence.name || "Main Geofence";
+        
+        await db.request()
+          .input("id", sql.NVarChar, id)
+          .input("employeeId", sql.NVarChar, employeeId)
+          .input("timestamp", sql.DateTimeOffset, timestamp)
+          .input("status", sql.NVarChar, "Out")
+          .input("companyId", sql.NVarChar, companyId)
+          .input("lat", sql.Float, lat)
+          .input("lng", sql.Float, lng)
+          .input("gfName", sql.NVarChar, gfName)
+          .query("INSERT INTO AttendanceLogs (id, employeeId, timestamp, status, companyId, latitude, longitude, geofenceName) VALUES (@id, @employeeId, @timestamp, @status, @companyId, @lat, @lng, @gfName)");
+
+        res.json({ success: true, log: { id, employeeId, timestamp, status: "Out", companyId, geofenceName: gfName } });
       } else {
-        res.status(400).json({ success: false, message: `Outside geofence area (Distance: ${Math.round(distanceMeter)}m)` });
+        const arFences = checkedFencesMsg.map(msg => msg.replace("max", "الحد الأقصى").replace("Fence", "نطاق B").replace("Distance", "المسافة"));
+        res.status(400).json({ 
+          success: false, 
+          message: `خارج النطاق الجغرافي المحدد للبصمة. المسافات: ${arFences.join(" | ")}` 
+        });
       }
     } catch (err) {
       console.error("Check-out error:", err);
@@ -954,20 +1266,36 @@ async function startServer() {
 
   app.put("/api/employees/:id", async (req, res) => {
     const db = await getPool();
-    const { name, email, department, role, username, password, avatar, requesterRole } = req.body;
+    const { name, email, department, role, username, password, avatar, requesterRole, assignedGeofenceId } = req.body;
     
     if (!db) {
        console.log("Mock update for employee:", req.params.id);
-       return res.json({ id: req.params.id, name, username, role, email, department, status: 'Active', avatar });
+       return res.json({ id: req.params.id, name, username, role, email, department, status: 'Active', avatar, assignedGeofenceId });
     }
     
     try {
-      const employeeRes = await db.request().input("id", sql.NVarChar, req.params.id).query("SELECT role FROM Employees WHERE id = @id");
+      const employeeRes = await db.request().input("id", sql.NVarChar, req.params.id).query("SELECT role, companyId FROM Employees WHERE id = @id");
       if (employeeRes.recordset.length === 0) {
         return res.status(404).json({ error: "Employee not found" });
       }
 
       const existingRole = employeeRes.recordset[0].role;
+      const empCompanyId = employeeRes.recordset[0].companyId || "comp-default";
+
+      let finalAssignedGeofenceId = assignedGeofenceId;
+      if (department && department.trim() !== "") {
+        try {
+          const deptRes = await db.request()
+            .input("deptName", sql.NVarChar, department)
+            .input("companyId", sql.NVarChar, empCompanyId)
+            .query("SELECT assignedGeofenceId FROM Departments WHERE name = @deptName AND companyId = @companyId");
+          if (deptRes.recordset.length > 0 && deptRes.recordset[0].assignedGeofenceId !== undefined) {
+            finalAssignedGeofenceId = deptRes.recordset[0].assignedGeofenceId;
+          }
+        } catch (deptErr) {
+          console.error("Failed to sync employee geofence with department:", deptErr);
+        }
+      }
       if (existingRole === 'admin' && requesterRole === 'admin' && req.params.id !== req.body.currentUserId && req.params.id !== req.body.id) {
         return res.status(403).json({ error: "لا يمكن للادمنز تعديل بعضهم البعض، فقط الـ CEO يمكنه تعديلهم." });
       }
@@ -979,6 +1307,14 @@ async function startServer() {
       }
 
       // Check username uniqueness
+      const cleanUser = String(username || "").toLowerCase().trim();
+      if (cleanUser === "joetomi" || cleanUser === "dev") {
+        return res.status(400).json({
+          error: "هذا الاسم مستخدم للمطور ولا يمكن حجزه! الرجاء اختيار اسم آخر.",
+          errorEn: "This username belongs to the developer and is reserved. Please choose another username."
+        });
+      }
+
       const usernameCheck = await db.request()
         .input("username", sql.NVarChar, username)
         .input("id", sql.NVarChar, req.params.id)
@@ -998,19 +1334,20 @@ async function startServer() {
         .input("dept", sql.NVarChar, department)
         .input("role", sql.NVarChar, role)
         .input("user", sql.NVarChar, username)
-        .input("avatar", sql.NVarChar(sql.MAX), avatar);
+        .input("avatar", sql.NVarChar(sql.MAX), avatar)
+        .input("assignedGeofenceId", sql.NVarChar, finalAssignedGeofenceId || null);
 
       if (hasPass) {
         await request.input("pass", sql.NVarChar, password).query(`
-          UPDATE Employees SET name=@name, email=@email, department=@dept, role=@role, username=@user, password=@pass, avatar=@avatar WHERE id=@id
+          UPDATE Employees SET name=@name, email=@email, department=@dept, role=@role, username=@user, password=@pass, avatar=@avatar, assignedGeofenceId=@assignedGeofenceId WHERE id=@id
         `);
       } else {
         await request.query(`
-          UPDATE Employees SET name=@name, email=@email, department=@dept, role=@role, username=@user, avatar=@avatar WHERE id=@id
+          UPDATE Employees SET name=@name, email=@email, department=@dept, role=@role, username=@user, avatar=@avatar, assignedGeofenceId=@assignedGeofenceId WHERE id=@id
         `);
       }
       
-      res.json({ id: req.params.id, name, username, role, email: email || `${username}@enterprise.com`, department, status: 'Active', avatar });
+      res.json({ id: req.params.id, name, username, role, email: email || `${username}@enterprise.com`, department, status: 'Active', avatar, assignedGeofenceId: finalAssignedGeofenceId });
     } catch (err) {
       console.error("Employee update failed:", err);
       res.status(500).json({ error: "Database update error" });
@@ -1241,7 +1578,7 @@ async function startServer() {
       // Auto-create a default geofence configuration for this new company so they have one
       await db.request()
         .input("companyId", sql.NVarChar, id)
-        .query("INSERT INTO Geofence (latitude, longitude, radius, name, startTime, endTime, companyId) VALUES (34.0522, -118.2437, 200, 'HQ Main Entrance', '08:00', '17:00', @companyId)");
+        .query("INSERT INTO Geofence (latitude, longitude, radius, name, startTime, endTime, companyId) VALUES (32.374332461501005, 15.090419235262685, 200, 'HQ Main Entrance', '08:00', '17:00', @companyId)");
 
       res.status(201).json({ id, name, domain, logo, planName, maxEmployees, features, subDurationMonths, subStartDate, subEndDate: calculatedEndDate });
     } catch (err) {
@@ -1418,7 +1755,7 @@ async function startServer() {
   app.post("/api/departments", async (req, res) => {
     const db = await getPool();
     if (!db) return res.status(503).json({ error: "DB not connected" });
-    const { id, name, description, color } = req.body;
+    const { id, name, description, color, assignedGeofenceId } = req.body;
     const companyId = req.headers["x-company-id"] || req.query.companyId || req.body.companyId || "comp-default";
     try {
       if (id) {
@@ -1428,7 +1765,8 @@ async function startServer() {
           .input("name", sql.NVarChar, name)
           .input("desc", sql.NVarChar, description)
           .input("color", sql.NVarChar, color)
-          .query("UPDATE Departments SET name = @name, description = @desc, color = @color WHERE id = @id");
+          .input("assignedGeofenceId", sql.NVarChar, assignedGeofenceId || null)
+          .query("UPDATE Departments SET name = @name, description = @desc, color = @color, assignedGeofenceId = @assignedGeofenceId WHERE id = @id");
       } else {
         // Create
         const newId = `dept_${Math.random().toString(36).substr(2, 9)}`;
@@ -1438,7 +1776,8 @@ async function startServer() {
           .input("desc", sql.NVarChar, description)
           .input("color", sql.NVarChar, color)
           .input("companyId", sql.NVarChar, companyId)
-          .query("INSERT INTO Departments (id, name, description, color, companyId) VALUES (@id, @name, @desc, @color, @companyId)");
+          .input("assignedGeofenceId", sql.NVarChar, assignedGeofenceId || null)
+          .query("INSERT INTO Departments (id, name, description, color, companyId, assignedGeofenceId) VALUES (@id, @name, @desc, @color, @companyId, @assignedGeofenceId)");
       }
       res.json({ success: true });
     } catch (err) {

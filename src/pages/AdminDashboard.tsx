@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Plus, Trash2, MoreVertical, ShieldCheck, UserMinus, Users, ChevronLeft, ChevronRight, X, Edit3, Download, FileSpreadsheet, Eye, EyeOff, RefreshCcw } from "lucide-react";
+import { Plus, Trash2, MoreVertical, ShieldCheck, UserMinus, Users, ChevronLeft, ChevronRight, X, Edit3, Download, FileSpreadsheet, Eye, EyeOff, RefreshCcw, Loader2, Check } from "lucide-react";
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
 import { Employee } from "../types";
@@ -13,6 +13,7 @@ export default function AdminDashboard() {
   const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [departments, setDepartments] = useState<any[]>([]);
+  const [geofences, setGeofences] = useState<any[]>([]);
   const [attendance, setAttendance] = useState<any[]>([]);
   const [onlineUsers, setOnlineUsers] = useState<Employee[]>([]);
   const [stats, setStats] = useState({ totalEmployees: 0, activeToday: 0, onlineNow: 0, totalLogs: 0 });
@@ -34,8 +35,42 @@ export default function AdminDashboard() {
     role: "user",
     name: "",
     department: "Operations",
-    avatar: ""
+    avatar: "",
+    assignedGeofenceId: ""
   });
+
+  const [usernameChecking, setUsernameChecking] = useState(false);
+  const [isUsernameAvailable, setIsUsernameAvailable] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const rawUser = newEmployee.username.trim();
+    if (rawUser.length === 0) {
+      setIsUsernameAvailable(null);
+      setUsernameChecking(false);
+      return;
+    }
+
+    const delayDebounceFn = setTimeout(async () => {
+      setUsernameChecking(true);
+      try {
+        const url = `/api/employees/check-username?username=${encodeURIComponent(rawUser)}${editingId ? `&excludeId=${encodeURIComponent(editingId)}` : ""}`;
+        const res = await fetch(url);
+        if (res.ok) {
+          const data = await res.json();
+          setIsUsernameAvailable(data.available);
+        } else {
+          setIsUsernameAvailable(false);
+        }
+      } catch (err) {
+        console.error("Checking username failed:", err);
+        setIsUsernameAvailable(false);
+      } finally {
+        setUsernameChecking(false);
+      }
+    }, 450);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [newEmployee.username, editingId]);
 
   const refreshAttendance = async () => {
     try {
@@ -91,12 +126,13 @@ export default function AdminDashboard() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [empRes, attRes, onlineRes, statsRes, deptRes] = await Promise.all([
+        const [empRes, attRes, onlineRes, statsRes, deptRes, gfRes] = await Promise.all([
           fetch("/api/employees", { headers: { "X-Company-Id": currentUser.companyId || "" } }).catch(() => null),
           fetch("/api/attendance", { headers: { "X-Company-Id": currentUser.companyId || "" } }).catch(() => null),
           fetch("/api/employees/online", { headers: { "X-Company-Id": currentUser.companyId || "" } }).catch(() => null),
           fetch("/api/stats", { headers: { "X-Company-Id": currentUser.companyId || "" } }).catch(() => null),
-          fetch("/api/departments", { headers: { "X-Company-Id": currentUser.companyId || "" } }).catch(() => null)
+          fetch("/api/departments", { headers: { "X-Company-Id": currentUser.companyId || "" } }).catch(() => null),
+          fetch("/api/geofence/list", { headers: { "X-Company-Id": currentUser.companyId || "" } }).catch(() => null)
         ]);
 
         if (empRes && empRes.ok) {
@@ -113,6 +149,11 @@ export default function AdminDashboard() {
           if (!editingId && data.length > 0) {
             setNewEmployee(prev => ({ ...prev, department: data[0].name }));
           }
+        }
+
+        if (gfRes && gfRes.ok) {
+          const data = await gfRes.json();
+          setGeofences(Array.isArray(data) ? data : []);
         }
         
         if (attRes && attRes.ok) {
@@ -198,7 +239,7 @@ export default function AdminDashboard() {
         }
         setShowModal(false);
         setEditingId(null);
-        setNewEmployee({ username: "", password: "", role: "user", name: "", department: "Operations", avatar: "" });
+        setNewEmployee({ username: "", password: "", role: "user", name: "", department: "Operations", avatar: "", assignedGeofenceId: "" });
       })
       .catch(err => {
         console.error("Operation failed:", err);
@@ -217,7 +258,8 @@ export default function AdminDashboard() {
       role: employee.role,
       name: employee.name,
       department: employee.department || "Operations",
-      avatar: employee.avatar || ""
+      avatar: employee.avatar || "",
+      assignedGeofenceId: employee.assignedGeofenceId ? String(employee.assignedGeofenceId) : ""
     });
     setShowModal(true);
   };
@@ -314,6 +356,8 @@ export default function AdminDashboard() {
             date: dateKey,
             checkIn: null,
             checkOut: null,
+            checkInRange: null,
+            checkOutRange: null,
             _inTime: Infinity,
             _outTime: -Infinity
           };
@@ -326,11 +370,13 @@ export default function AdminDashboard() {
           if (timeMs < reportMap[groupKey]._inTime) {
             reportMap[groupKey]._inTime = timeMs;
             reportMap[groupKey].checkIn = timeStr;
+            reportMap[groupKey].checkInRange = log.geofenceName ? `${log.geofenceName} (${log.latitude ? log.latitude.toFixed(4) : ''}, ${log.longitude ? log.longitude.toFixed(4) : ''})` : "--";
           }
         } else if (log.status === "Out") {
           if (timeMs > reportMap[groupKey]._outTime) {
             reportMap[groupKey]._outTime = timeMs;
             reportMap[groupKey].checkOut = timeStr;
+            reportMap[groupKey].checkOutRange = log.geofenceName ? `${log.geofenceName} (${log.latitude ? log.latitude.toFixed(4) : ''}, ${log.longitude ? log.longitude.toFixed(4) : ''})` : "--";
           }
         }
       });
@@ -345,7 +391,9 @@ export default function AdminDashboard() {
           "Department": item.dept,
           "Date": item.date,
           "Check In": item.checkIn || "--:--",
+          "Check In Range": item.checkInRange || "--",
           "Check Out": item.checkOut || "--:--",
+          "Check Out Range": item.checkOutRange || "--",
           "Work Hours": hours
         };
       });
@@ -360,7 +408,9 @@ export default function AdminDashboard() {
         { header: "Department", key: "Department", width: 20 },
         { header: "Date", key: "Date", width: 15 },
         { header: "Check In", key: "Check In", width: 12 },
+        { header: "Check In Range", key: "Check In Range", width: 25 },
         { header: "Check Out", key: "Check Out", width: 12 },
+        { header: "Check Out Range", key: "Check Out Range", width: 25 },
         { header: "Work Hours", key: "Work Hours", width: 15 },
       ];
 
@@ -448,8 +498,8 @@ export default function AdminDashboard() {
                    {onlineUsers.length === 0 ? (
                      <p className="text-xs text-on-surface-variant opacity-60 italic">{t.noPersonnel}</p>
                    ) : (
-                     onlineUsers.map(user => (
-                        <div key={user.id} className="flex items-center gap-3 bg-surface p-2 pr-4 rounded-2xl border border-outline-variant transition-transform hover:scale-105">
+                     onlineUsers.map((user, idx) => (
+                        <div key={`${user.id || 'user'}-${idx}`} className="flex items-center gap-3 bg-surface p-2 pr-4 rounded-2xl border border-outline-variant transition-transform hover:scale-105">
                           <img src={user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random`} className="w-10 h-10 rounded-xl border border-secondary/30 object-cover" alt="" />
                           <div>
                            <p className="text-xs font-bold text-on-surface leading-tight">{user.name}</p>
@@ -471,7 +521,7 @@ export default function AdminDashboard() {
                   <h3 className="text-2xl font-bold text-on-surface tracking-tight">{t.navEmployees}</h3>
                   <p className="text-sm text-on-surface-variant">{lang === "ar" ? "إدارة وتفويض موظفي الشركة." : "Manage and authorize corporate staff."}</p>
                 </div>
-                <button id="add-employee-btn" onClick={() => { setEditingId(null); setNewEmployee({ username: "", password: "", role: "user", name: "", department: "Operations", avatar: "" }); setShowModal(true); }} className="btn-primary">
+                <button id="add-employee-btn" onClick={() => { setEditingId(null); setNewEmployee({ username: "", password: "", role: "user", name: "", department: "Operations", avatar: "", assignedGeofenceId: "" }); setShowModal(true); }} className="btn-primary">
                   <Plus className="w-5 h-5" />
                   {lang === "ar" ? "إضافة موظف" : "Add Employee"}
                 </button>
@@ -497,29 +547,38 @@ export default function AdminDashboard() {
                           <td colSpan={3} className="px-6 py-12 text-center text-on-surface-variant italic">No records.</td>
                         </tr>
                       ) : (
-                        employees.map((employee) => (
-                          <tr key={employee.id} className="hover:bg-surface-container transition-colors group">
-                            <td className="px-6 py-4">
-                              <div className="flex items-center gap-3">
-                                <img 
-                                  src={employee.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(employee.name)}&background=random`} 
-                                  alt={employee.name} 
-                                  className="w-10 h-10 rounded-xl object-cover border border-outline-variant"
-                                />
-                                <div>
-                                  <div className="flex items-center gap-2">
-                                    <p className="text-sm font-bold text-on-surface">{employee.name}</p>
-                                    <span className={cn(
-                                      "text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider",
-                                      employee.role === 'admin' ? "bg-primary/20 text-primary" : "bg-secondary/20 text-secondary"
-                                    )}>
-                                      {employee.role}
-                                    </span>
+                        employees.map((employee, idx) => {
+                          const assignedGf = geofences.find(g => String(g.id) === String(employee.assignedGeofenceId));
+                          return (
+                            <tr key={`${employee.id || 'emp'}-${idx}`} className="hover:bg-surface-container transition-colors group">
+                              <td className="px-6 py-4">
+                                <div className="flex items-center gap-3">
+                                  <img 
+                                    src={employee.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(employee.name)}&background=random`} 
+                                    alt={employee.name} 
+                                    className="w-10 h-10 rounded-xl object-cover border border-outline-variant"
+                                  />
+                                  <div>
+                                    <div className="flex items-center gap-2">
+                                      <p className="text-sm font-bold text-on-surface">{employee.name}</p>
+                                      <span className={cn(
+                                        "text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider",
+                                        employee.role === 'admin' ? "bg-primary/20 text-primary" : "bg-secondary/20 text-secondary"
+                                      )}>
+                                        {employee.role}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center gap-2 mt-1">
+                                      <p className="text-[10px] text-on-surface-variant uppercase tracking-tighter opacity-70">{employee.username}</p>
+                                      {assignedGf && (
+                                        <span className="text-[9px] px-1.5 py-0.5 rounded font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20 flex items-center gap-0.5">
+                                          📍 {assignedGf.name}
+                                        </span>
+                                      )}
+                                    </div>
                                   </div>
-                                  <p className="text-[10px] text-on-surface-variant uppercase tracking-tighter opacity-70">{employee.username}</p>
                                 </div>
-                              </div>
-                            </td>
+                              </td>
                             <td className="px-6 py-4">
                               <span className="text-xs font-bold text-secondary uppercase tracking-widest">{employee.department}</span>
                             </td>
@@ -548,8 +607,9 @@ export default function AdminDashboard() {
                               </div>
                             </td>
                           </tr>
-                        ))
-                      )}
+                        );
+                      })
+                    )}
                     </tbody>
                   </table>
                 </div>
@@ -602,8 +662,8 @@ export default function AdminDashboard() {
                         className="w-full bg-surface-container border border-outline-variant rounded-xl px-4 py-2.5 text-sm text-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all cursor-pointer"
                       >
                         <option value="all">{t.allEmployees}</option>
-                        {employees.map(emp => (
-                          <option key={emp.id} value={emp.id}>{emp.name}</option>
+                        {employees.map((emp, idx) => (
+                          <option key={`${emp.id || 'emp'}-${idx}`} value={emp.id}>{emp.name}</option>
                         ))}
                       </select>
                     </div>
@@ -626,8 +686,8 @@ export default function AdminDashboard() {
                       <p className="text-xs font-bold uppercase tracking-widest text-on-surface-variant opacity-40">{t.noActivity}</p>
                     </div>
                   ) : (
-                    attendance.map((log) => (
-                      <div key={log.id} className="relative pl-6 pb-6 border-l-2 border-outline-variant last:pb-0 rtl:pl-0 rtl:pr-6 rtl:border-l-0 rtl:border-r-2">
+                    attendance.map((log, idx) => (
+                      <div key={`${log.id || 'log'}-${idx}`} className="relative pl-6 pb-6 border-l-2 border-outline-variant last:pb-0 rtl:pl-0 rtl:pr-6 rtl:border-l-0 rtl:border-r-2">
                         <div className={cn(
                           "absolute -left-[9px] rtl:-right-[9px] top-0 w-4 h-4 rounded-full border-4 border-surface shadow-sm transition-transform group-hover:scale-125",
                           log.status === 'In' ? "bg-secondary" : "bg-red-500"
@@ -656,6 +716,15 @@ export default function AdminDashboard() {
                                 )}
                               </div>
                               <p className="text-[10px] text-on-surface-variant opacity-60">{log.department}</p>
+                              {log.geofenceName && (
+                                <div className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 mt-1 flex items-center gap-1">
+                                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                  <span>{lang === "ar" ? "النطاق:" : "Range:"} {log.geofenceName}</span>
+                                  {log.latitude && (
+                                    <span className="text-[9px] font-mono opacity-60">({log.latitude.toFixed(4)}, {log.longitude.toFixed(4)})</span>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -735,13 +804,42 @@ export default function AdminDashboard() {
 
                   <div>
                     <label className="input-label">{t.username}</label>
-                    <input 
-                      type="text" 
-                      className="input-field" 
-                      value={newEmployee.username}
-                      onChange={(e) => setNewEmployee(prev => ({ ...prev, username: e.target.value }))}
-                      required 
-                    />
+                    <div className="relative animate-fade-in">
+                      <input 
+                        type="text" 
+                        className={cn(
+                          "input-field",
+                          lang === "ar" ? "pl-24" : "pr-24"
+                        )} 
+                        value={newEmployee.username}
+                        onChange={(e) => setNewEmployee(prev => ({ ...prev, username: e.target.value.toLowerCase().trim().replace(/[^a-z0-9_.-]/g, "") }))}
+                        placeholder={lang === "ar" ? "مثال: ahmad_hq" : "e.g., ahmad_hq"}
+                        required 
+                      />
+                      <div className={cn(
+                        "absolute top-1/2 -translate-y-1/2 flex items-center gap-1.5",
+                        lang === "ar" ? "left-3 flex-row-reverse" : "right-3"
+                      )}>
+                        {usernameChecking && (
+                          <div className="flex items-center gap-1 text-primary text-[10px] font-bold bg-primary/10 px-2 py-0.5 rounded-lg border border-primary/20">
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            <span>{lang === "ar" ? "جاري الفحص..." : "Checking..."}</span>
+                          </div>
+                        )}
+                        {!usernameChecking && isUsernameAvailable === true && newEmployee.username.trim() !== "" && (
+                          <div className="flex items-center gap-1 text-emerald-500 text-[10px] font-bold bg-emerald-500/10 px-2 py-1 rounded-lg border border-emerald-500/20">
+                            <Check className="w-3.5 h-3.5" />
+                            <span>{lang === "ar" ? "صالح ✓" : "Valid ✓"}</span>
+                          </div>
+                        )}
+                        {!usernameChecking && isUsernameAvailable === false && newEmployee.username.trim() !== "" && (
+                          <div className="flex items-center gap-1 text-red-500 text-[10px] font-bold bg-red-500/10 px-2 py-1 rounded-lg border border-red-500/20">
+                            <X className="w-3.5 h-3.5 text-red-500" />
+                            <span>{lang === "ar" ? "مأخوذ ✗" : "Taken ✗"}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                   <div>
                     <label className="input-label">{t.password} {editingId && <span className="text-[10px] text-on-surface-variant opacity-60">({lang === "ar" ? "اتركه فارغاً للاحتفاظ بالحالي" : "Leave blank to keep current"})</span>}</label>
@@ -801,7 +899,16 @@ export default function AdminDashboard() {
                     <select 
                       className="input-field appearance-none bg-no-repeat bg-right pr-10 rtl:bg-left rtl:pl-10 rtl:pr-4 text-primary font-bold" 
                       value={newEmployee.department}
-                      onChange={(e) => setNewEmployee(prev => ({ ...prev, department: e.target.value }))}
+                      onChange={(e) => {
+                        const deptName = e.target.value;
+                        const matchedDept = departments.find(d => d.name === deptName);
+                        const deptGeofences = matchedDept && matchedDept.assignedGeofenceId ? String(matchedDept.assignedGeofenceId) : "";
+                        setNewEmployee(prev => ({ 
+                          ...prev, 
+                          department: deptName,
+                          assignedGeofenceId: deptGeofences
+                        }));
+                      }}
                       style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='currentColor'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundSize: '1.5em' }}
                     >
                       {departments.length === 0 ? (
@@ -813,15 +920,128 @@ export default function AdminDashboard() {
                       )}
                     </select>
                   </div>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="input-label mb-0">{lang === "ar" ? "النطاقات الجغرافية المعينة للموظف" : "Assigned Geofences"}</label>
+                      
+                      {/* All Geofences selection toggle */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const allGeofenceIds = geofences.map(gf => String(gf.id));
+                          const currentSelected = newEmployee.assignedGeofenceId ? String(newEmployee.assignedGeofenceId).split(",") : [];
+                          const isAllSelected = geofences.length > 0 && geofences.every(gf => currentSelected.includes(String(gf.id)));
+                          
+                          setNewEmployee(prev => ({
+                            ...prev,
+                            assignedGeofenceId: isAllSelected ? "" : allGeofenceIds.join(",")
+                          }));
+                        }}
+                        className={cn(
+                          "px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all cursor-pointer",
+                          (geofences.length > 0 && (newEmployee.assignedGeofenceId ? String(newEmployee.assignedGeofenceId).split(",") : []).filter(Boolean).length === geofences.length)
+                            ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/40 hover:bg-emerald-500/30"
+                            : "bg-white/5 border-outline hover:bg-white/10 text-on-surface/80"
+                        )}
+                      >
+                        {lang === "ar" ? "✓ جميع النطاقات (الفروع بالكامل)" : "✓ All Geofences (All Branches)"}
+                      </button>
+                    </div>
+
+                    {/* Location Verification Option - bypasses standard geofences completely */}
+                    <div className="mb-2">
+                      <label 
+                        className={cn(
+                          "flex items-start gap-3.5 p-3 rounded-2xl border transition-all cursor-pointer select-none text-xs font-semibold",
+                          newEmployee.assignedGeofenceId === "verify_location"
+                            ? "bg-amber-500/15 border-amber-500/50 text-white shadow-lg shadow-amber-500/5" 
+                            : "bg-surface border-outline-variant hover:bg-white/5 text-on-surface-variant"
+                        )}
+                      >
+                        <input
+                          type="checkbox"
+                          className="mt-0.5 w-4 h-4 rounded border-outline accent-amber-500 cursor-pointer text-amber-500 bg-[#1C1C1E]"
+                          checked={newEmployee.assignedGeofenceId === "verify_location"}
+                          onChange={() => {
+                            setNewEmployee(prev => ({
+                              ...prev,
+                              assignedGeofenceId: prev.assignedGeofenceId === "verify_location" ? "" : "verify_location"
+                            }));
+                          }}
+                        />
+                        <div className="flex flex-col">
+                          <span className="font-bold text-amber-400">
+                            {lang === "ar" ? "التحقق من موقع الموظف (ميداني/تسويق)" : "Verify Employee Location (Field/Marketing)"}
+                          </span>
+                          <span className="text-[10px] leading-relaxed opacity-75 mt-0.5 text-on-surface-variant">
+                            {lang === "ar" 
+                              ? "يلغي النطاقات الجغرافية بالكامل. يطلب من الموظف إرسال موقعه الحالي مع التحقق من حركته (نقطتين خلال 20 ثانية) للتأكد من خروجه للعمل" 
+                              : "Disables standard geofences. Employee sends dual-coordinates (two points 20 seconds apart) to verify actual travel."}
+                          </span>
+                        </div>
+                      </label>
+                    </div>
+
+                    {geofences.length === 0 ? (
+                      <p className="text-xs text-on-surface-variant/60 italic p-3 bg-[#1A1A1A] border border-outline-variant rounded-xl">
+                        {lang === "ar" ? "الرجاء إضافة نطاقات أولاً" : "Please add geofences first"}
+                      </p>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[160px] overflow-y-auto p-2 bg-[#1A1A1A] border border-outline-variant rounded-2xl">
+                        {geofences.map((gf) => {
+                          const currentSelected = newEmployee.assignedGeofenceId 
+                            ? String(newEmployee.assignedGeofenceId).split(",").map(x => x.trim()).filter(Boolean) 
+                            : [];
+                          const isChecked = currentSelected.includes(String(gf.id));
+                          return (
+                            <label 
+                              key={gf.id} 
+                              className={cn(
+                                "flex items-center gap-3 p-2.5 rounded-xl border transition-all cursor-pointer select-none text-xs font-semibold",
+                                isChecked 
+                                  ? "bg-primary/15 border-primary/50 text-white" 
+                                  : "bg-surface border-outline-variant hover:bg-white/5 text-on-surface-variant"
+                              )}
+                            >
+                              <input
+                                type="checkbox"
+                                className="w-4 h-4 rounded border-outline accent-primary cursor-pointer text-primary bg-[#1C1C1E]"
+                                checked={isChecked}
+                                onChange={() => {
+                                  let updated: string[] = [];
+                                  if (isChecked) {
+                                    updated = currentSelected.filter(id => id !== String(gf.id));
+                                  } else {
+                                    updated = [...currentSelected.filter(id => id !== "verify_location"), String(gf.id)];
+                                  }
+                                  const filtered = updated.map(x => x.trim()).filter(Boolean);
+                                  setNewEmployee(prev => ({
+                                    ...prev,
+                                    assignedGeofenceId: filtered.join(",")
+                                  }));
+                                }}
+                              />
+                              <div className="truncate flex flex-col">
+                                <span className="font-bold text-on-surface">{gf.name}</span>
+                                <span className="text-[10px] opacity-60 text-on-surface-variant font-mono">
+                                  {gf.latitude.toFixed(3)}, {gf.longitude.toFixed(3)}
+                                </span>
+                              </div>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
                   <button 
                     id="submit-identity-btn"
                     type="submit" 
-                    disabled={loading} 
+                    disabled={loading || usernameChecking || (newEmployee.username.trim() !== "" && isUsernameAvailable === false)} 
                     className={cn(
                       "w-full mt-6 py-4 px-6 rounded-xl font-bold uppercase tracking-widest text-sm transition-all duration-300 shadow-xl",
                       "flex items-center justify-center gap-3",
-                      loading 
-                        ? "bg-outline-variant text-on-surface-variant cursor-wait" 
+                      (loading || usernameChecking || (newEmployee.username.trim() !== "" && isUsernameAvailable === false))
+                        ? "bg-outline-variant text-on-surface-variant cursor-not-allowed opacity-50" 
                         : "bg-emerald-600 text-white hover:bg-emerald-700 hover:shadow-emerald-500/20 active:scale-[0.98] cursor-pointer"
                     )}
                   >
@@ -829,6 +1049,16 @@ export default function AdminDashboard() {
                       <>
                         <div className="w-5 h-5 border-3 border-white/30 border-t-white rounded-full animate-spin" />
                         <span>{lang === "ar" ? "جاري الحفظ..." : "Processing..."}</span>
+                      </>
+                    ) : usernameChecking ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin text-emerald-300" />
+                        <span>{lang === "ar" ? "جاري التحقق من اسم المستخدم..." : "Verifying username..."}</span>
+                      </>
+                    ) : (newEmployee.username.trim() !== "" && isUsernameAvailable === false) ? (
+                      <>
+                        <X className="w-5 h-5 text-red-400" />
+                        <span>{lang === "ar" ? "اسم المستخدم مأخوذ كلياً" : "Username is taken"}</span>
                       </>
                     ) : (
                       <>

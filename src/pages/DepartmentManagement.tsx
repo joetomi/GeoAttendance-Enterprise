@@ -22,6 +22,7 @@ interface Department {
   description: string;
   color: string;
   count?: number;
+  assignedGeofenceId?: string;
 }
 
 interface Employee {
@@ -39,6 +40,7 @@ export default function DepartmentManagement() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [selectedDept, setSelectedDept] = useState<Department | null>(null);
   const [deptEmployees, setDeptEmployees] = useState<Employee[]>([]);
+  const [geofences, setGeofences] = useState<any[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [editingDept, setEditingDept] = useState<Department | null>(null);
@@ -51,12 +53,28 @@ export default function DepartmentManagement() {
   const [formData, setFormData] = useState({
     name: "",
     description: "",
-    color: "#3B82F6"
+    color: "#3B82F6",
+    assignedGeofenceId: ""
   });
 
   useEffect(() => {
     fetchDepartments();
+    fetchGeofences();
   }, []);
+
+  const fetchGeofences = async () => {
+    try {
+      const res = await fetch("/api/geofence/list", {
+        headers: { "X-Company-Id": currentUser.companyId || "" }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setGeofences(Array.isArray(data) ? data : []);
+      }
+    } catch (err) {
+      console.error("Fetch geofences failed", err);
+    }
+  };
 
   useEffect(() => {
     if (selectedDept) {
@@ -113,7 +131,7 @@ export default function DepartmentManagement() {
         fetchDepartments();
         setIsModalOpen(false);
         setEditingDept(null);
-        setFormData({ name: "", description: "", color: "#3B82F6" });
+        setFormData({ name: "", description: "", color: "#3B82F6", assignedGeofenceId: "" });
       }
     } catch (err) {
       console.error("Save dept failed", err);
@@ -163,7 +181,8 @@ export default function DepartmentManagement() {
     setFormData({
       name: dept.name,
       description: dept.description,
-      color: dept.color
+      color: dept.color,
+      assignedGeofenceId: dept.assignedGeofenceId ? String(dept.assignedGeofenceId) : ""
     });
     setIsModalOpen(true);
   };
@@ -399,6 +418,88 @@ export default function DepartmentManagement() {
                         />
                       ))}
                     </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest opacity-60">
+                        {lang === "ar" ? "نطاقات الفروع المعينة للقسم" : "Assigned Department Geofences"}
+                      </label>
+                      
+                      {/* All Geofences selection toggle */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const allGeofenceIds = geofences.map(gf => String(gf.id));
+                          const currentSelected = formData.assignedGeofenceId ? String(formData.assignedGeofenceId).split(",") : [];
+                          const isAllSelected = geofences.length > 0 && geofences.every(gf => currentSelected.includes(String(gf.id)));
+                          
+                          setFormData(prev => ({
+                            ...prev,
+                            assignedGeofenceId: isAllSelected ? "" : allGeofenceIds.join(",")
+                          }));
+                        }}
+                        className={cn(
+                          "px-2.5 py-1 text-[9px] font-bold rounded-lg border transition-all cursor-pointer",
+                          (geofences.length > 0 && (formData.assignedGeofenceId ? String(formData.assignedGeofenceId).split(",") : []).filter(Boolean).length === geofences.length)
+                            ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/40 hover:bg-emerald-500/30"
+                            : "bg-white/5 border-outline hover:bg-white/10 text-on-surface/80"
+                        )}
+                      >
+                        {lang === "ar" ? "✓ جميع النطاقات الفروع" : "✓ All Geofences"}
+                      </button>
+                    </div>
+
+                    {geofences.length === 0 ? (
+                      <p className="text-xs text-on-surface-variant/60 italic p-3 bg-[#1A1A1A] border border-outline-variant rounded-xl">
+                        {lang === "ar" ? "الرجاء إضافة نطاقات أولاً" : "Please add geofences first"}
+                      </p>
+                    ) : (
+                      <div className="grid grid-cols-1 gap-2 max-h-[140px] overflow-y-auto p-2 bg-[#1A1A1A] border border-outline-variant rounded-2xl">
+                        {geofences.map((gf) => {
+                          const currentSelected = formData.assignedGeofenceId 
+                            ? String(formData.assignedGeofenceId).split(",").map(x => x.trim()).filter(Boolean) 
+                            : [];
+                          const isChecked = currentSelected.includes(String(gf.id));
+                          return (
+                            <label 
+                              key={gf.id} 
+                              className={cn(
+                                "flex items-center gap-3 p-2.5 rounded-xl border transition-all cursor-pointer select-none text-xs font-semibold",
+                                isChecked 
+                                  ? "bg-primary/15 border-primary/50 text-white" 
+                                  : "bg-surface border-outline-variant hover:bg-white/5 text-on-surface-variant"
+                              )}
+                            >
+                              <input
+                                type="checkbox"
+                                className="w-4 h-4 rounded border-outline accent-primary cursor-pointer text-primary bg-[#1C1C1E]"
+                                checked={isChecked}
+                                onChange={() => {
+                                  let updated: string[] = [];
+                                  if (isChecked) {
+                                    updated = currentSelected.filter(id => id !== String(gf.id));
+                                  } else {
+                                    updated = [...currentSelected, String(gf.id)];
+                                  }
+                                  const filtered = updated.map(x => x.trim()).filter(Boolean);
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    assignedGeofenceId: filtered.join(",")
+                                  }));
+                                }}
+                              />
+                              <div className="truncate flex flex-col">
+                                <span className="font-bold text-on-surface">{gf.name}</span>
+                                <span className="text-[9px] opacity-65 text-on-surface-variant font-mono">
+                                  {gf.latitude.toFixed(4)}, {gf.longitude.toFixed(4)}
+                                </span>
+                              </div>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
 
                   <div className="pt-4 flex gap-4">
