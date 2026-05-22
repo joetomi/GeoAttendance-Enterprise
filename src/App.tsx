@@ -12,6 +12,7 @@ import PayrollDashboard from "./pages/PayrollDashboard";
 import MobileCheckIn from "./pages/MobileCheckIn";
 import DepartmentManagement from "./pages/DepartmentManagement";
 import DeveloperPanel from "./pages/DeveloperPanel";
+import MapView from "./pages/MapView";
 import { Sidebar, Header, MobileMenu } from "./components/Navigation";
 import { IdleTimer } from "./components/IdleTimer";
 import { LanguageProvider } from "./contexts/LanguageContext";
@@ -106,6 +107,9 @@ export default function App() {
                 </ProtectedRoute>
               } 
             />
+            
+            {/* Map View Route */}
+            <Route path="/map-view" element={<MapView />} />
             
             {/* Fallback */}
             <Route path="/developer" element={<DeveloperPanel />} />

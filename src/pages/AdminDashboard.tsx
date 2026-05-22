@@ -516,9 +516,9 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-            {/* Left Column: Employee Directory */}
-            <div className="xl:col-span-2">
+          <div className="space-y-12">
+            {/* Employee Directory Block (Now Full-Width of the page) */}
+            <div className="w-full">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
                 <div>
                   <h3 className="text-2xl font-bold text-on-surface tracking-tight">{t.navEmployees}</h3>
@@ -574,7 +574,12 @@ export default function AdminDashboard() {
                                     <div className="flex items-center gap-2 mt-1">
                                       <p className="text-[10px] text-on-surface-variant uppercase tracking-tighter opacity-70">{employee.username}</p>
                                       {assignedGf && (
-                                        <span className="text-[9px] px-1.5 py-0.5 rounded font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20 flex items-center gap-0.5">
+                                        <span className={cn(
+                                          "text-[9px] px-1.5 py-0.5 rounded font-bold border flex items-center gap-0.5",
+                                          employee.assignedGeofenceId === "verify_location_single" || employee.assignedGeofenceId === "verify_location" || employee.assignedGeofenceId === "verify_location_double"
+                                            ? "bg-amber-500/10 text-amber-500 border-amber-500/20"
+                                            : "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
+                                        )}>
                                           📍 {assignedGf.name}
                                         </span>
                                       )}
@@ -619,12 +624,12 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            {/* Right Column: Attendance Logs */}
-            <div className="xl:col-span-1">
+            {/* Attendance & Activity Logs Underneath Employee Directory (Now Full-Width of the page) */}
+            <div className="w-full">
               <div className="flex flex-col gap-6 mb-8">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="text-2xl font-bold text-on-surface tracking-tight">{t.activityLogs}</h3>
+                    <h3 className="text-2xl font-black text-on-surface tracking-tight">{t.activityLogs}</h3>
                     <p className="text-sm text-on-surface-variant">{t.activitySub}</p>
                   </div>
                   <button 
@@ -683,78 +688,116 @@ export default function AdminDashboard() {
               </div>
 
               <div className="card p-6 bg-surface-container overflow-hidden bg-pattern-wavy">
-                <div className="space-y-6 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+                <div className="space-y-6 max-h-[800px] overflow-y-auto pr-2 custom-scrollbar">
                   {attendance.length === 0 ? (
                     <div className="text-center py-12">
                       <p className="text-xs font-bold uppercase tracking-widest text-on-surface-variant opacity-40">{t.noActivity}</p>
                     </div>
                   ) : (
-                    attendance.map((log, idx) => (
-                      <div key={`${log.id || 'log'}-${idx}`} className="relative pl-6 pb-6 border-l-2 border-outline-variant last:pb-0 rtl:pl-0 rtl:pr-6 rtl:border-l-0 rtl:border-r-2">
-                        <div className={cn(
-                          "absolute -left-[9px] rtl:-right-[9px] top-0 w-4 h-4 rounded-full border-4 border-surface shadow-sm transition-transform group-hover:scale-125",
-                          log.status === 'In' ? "bg-secondary" : "bg-red-500"
-                        )} />
-                        
-                        <div className="flex flex-col gap-1">
-                          <div className="flex items-center justify-between">
-                            <span className={cn(
-                              "text-[10px] font-bold uppercase tracking-widest",
-                              log.status === 'In' ? "text-secondary" : "text-red-500"
-                            )}>
-                              {log.status === 'In' ? (lang === "ar" ? "تم تسجيل الحضور" : "Checked In") : (lang === "ar" ? "تم تسجيل الانصراف" : "Checked Out")}
-                            </span>
-                            <span className="text-[10px] font-mono text-on-surface-variant opacity-60">
-                              {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </span>
-                          </div>
+                    attendance.map((log, idx) => {
+                      // Determine if log is a location verification stamp
+                      const isVerificationLog = log.geofenceName && (
+                        log.geofenceName.startsWith("verify_double:") ||
+                        log.geofenceName.toLowerCase().includes("verify single") ||
+                        log.geofenceName.toLowerCase().includes("verify_location") ||
+                        log.geofenceName.includes("بصمة واحدة") ||
+                        log.geofenceName.toLowerCase().includes("direct checkout") ||
+                        log.geofenceName.includes("الخروج المباشر")
+                      );
+
+                      // Parse start & confirm coordinates for double stamp, or fallback for single stamp
+                      let loc1 = null, loc2 = null;
+                      if (log.geofenceName && log.geofenceName.startsWith("verify_double:")) {
+                        try {
+                          const parsed = JSON.parse(log.geofenceName.replace("verify_double:", ""));
+                          loc1 = parsed.loc1;
+                          loc2 = parsed.loc2;
+                        } catch (e) {
+                          console.error("Failed to parse verify_double coordinates:", e);
+                        }
+                      }
+                      
+                      if (!loc2) {
+                        loc2 = { lat: log.latitude || 32.3743, lng: log.longitude || 15.0904 };
+                      }
+                      if (!loc1) {
+                        loc1 = { lat: 32.374332461501005, lng: 15.090419235262685 }; // Standard HQ fallback coordinates
+                      }
+
+                      const mapUrl = `/map-view?lat1=${loc1.lat}&lng1=${loc1.lng}&lat2=${loc2.lat}&lng2=${loc2.lng}&label1=${encodeURIComponent(log.geofenceName && log.geofenceName.startsWith("verify_double:") ? (lang === "ar" ? "البصمة الأولى (بدء)" : "First Stamp (1/2)") : (lang === "ar" ? "تحديد الفرع المرجعي (HQ)" : "HQ Reference Base (1/2)"))}&label2=${encodeURIComponent(lang === "ar" ? "موقع الحضور الفعلي للموظف" : "Actual Stamp Coordinate (2/2)")}&emp=${encodeURIComponent(log.employeeName || "")}&lang=${lang}`;
+
+                      return (
+                        <div key={`${log.id || 'log'}-${idx}`} className="relative pl-6 pb-6 border-l-2 border-outline-variant last:pb-0 rtl:pl-0 rtl:pr-6 rtl:border-l-0 rtl:border-r-2 group">
+                          <div className={cn(
+                            "absolute -left-[9px] rtl:-right-[9px] top-0 w-4 h-4 rounded-full border-4 border-surface shadow-sm transition-transform group-hover:scale-125",
+                            log.status === 'In' ? "bg-secondary" : "bg-red-500"
+                          )} />
                           
-                          <div className="flex items-center gap-3 mt-1">
-                            <img src={log.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(log.employeeName || 'U')}&background=random`} className="w-8 h-8 rounded-lg object-cover border border-outline-variant" alt="" />
-                            <div>
-                              <div className="flex items-center gap-1.5">
-                                <p className="text-sm font-bold text-on-surface">{log.employeeName || 'Unknown Employee'}</p>
-                                {log.role === 'admin' && (
-                                  <span className="text-[9px] bg-primary/20 text-primary px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Admin</span>
-                                )}
-                              </div>
-                              <p className="text-[10px] text-on-surface-variant opacity-60">{log.department}</p>
-                              {log.geofenceName && (
-                                <div className="text-[10px] font-semibold mt-1">
-                                  {log.geofenceName.startsWith("verify_double:") ? (
-                                    <div className="flex flex-col gap-1.5 items-start mt-1">
-                                      <span className="text-amber-500 font-bold flex items-center gap-1">
-                                        <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-                                        {lang === "ar" ? "تحقق حركة ثنائي البصمة (ميداني)" : "Dual GPS Movement Verified"}
-                                      </span>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setSelectedDoubleLocLog(log);
-                                          setShowDoubleLocModal(true);
-                                        }}
-                                        className="px-2.5 py-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 rounded-lg text-[10px] font-bold transition-all border border-amber-500/25 flex items-center gap-1 cursor-pointer"
-                                      >
-                                        <Eye className="w-3 h-3 text-amber-500" />
-                                        {lang === "ar" ? "اضغط هنا لفتح خريطة المسار والنقطتين" : "View Map & Movement Route"}
-                                      </button>
-                                    </div>
-                                  ) : (
-                                    <div className="text-emerald-600 dark:text-emerald-400 mt-1 flex items-center gap-1">
-                                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                      <span>{lang === "ar" ? "النطاق:" : "Range:"} {log.geofenceName}</span>
-                                      {log.latitude && (
-                                        <span className="text-[9px] font-mono opacity-60">({log.latitude.toFixed(4)}, {log.longitude.toFixed(4)})</span>
-                                      )}
-                                    </div>
+                          <div className="flex flex-col gap-1.5">
+                            <div className="flex items-center justify-between">
+                              <span className={cn(
+                                "text-xs font-black uppercase tracking-wider",
+                                log.status === 'In' ? "text-secondary" : "text-red-500"
+                              )}>
+                                {log.status === 'In' ? (lang === "ar" ? "تم تسجيل الحضور" : "Checked In") : (lang === "ar" ? "تم تسجيل الانصراف" : "Checked Out")}
+                              </span>
+                              <span className="text-xs font-mono font-medium text-on-surface-variant opacity-80 bg-surface px-2.5 py-1 rounded-lg border border-outline-variant/40">
+                                {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {new Date(log.timestamp).toLocaleDateString()}
+                              </span>
+                            </div>
+                            
+                            <div className="flex items-start gap-4 mt-1.5">
+                              <img src={log.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(log.employeeName || 'U')}&background=random`} className="w-12 h-12 rounded-2xl object-cover border border-outline-variant/60 shadow-inner shrink-0" alt="" />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <p className="text-base font-black text-on-surface leading-tight truncate">{log.employeeName || 'Unknown Employee'}</p>
+                                  {log.role === 'admin' && (
+                                    <span className="text-[10px] bg-primary/20 text-primary px-2 py-0.5 rounded font-bold uppercase tracking-wider">Admin</span>
                                   )}
                                 </div>
-                              )}
+                                <p className="text-xs font-bold text-on-surface-variant/80 mt-1">{log.department}</p>
+                                
+                                {isVerificationLog ? (
+                                  <div className="mt-3 flex flex-wrap items-center gap-3">
+                                    <span className="text-amber-500 text-xs font-bold bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-xl flex items-center gap-1.5 shadow-sm">
+                                      <span className="inline-block w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                                      {lang === "ar" ? "تحقق الأقمار الصناعية (ميداني وبصمة واحدة/ثنائية)" : "Satellite GPS Verified"}
+                                    </span>
+                                    <a
+                                      href={mapUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-xs text-primary font-black underline hover:text-primary-high transition-all flex items-center gap-2 bg-primary/15 hover:bg-primary/25 px-3 py-1.5 rounded-xl border border-primary/20 hover:scale-[1.02] shadow-sm select-none"
+                                      title={lang === "ar" ? "اضغط لفتح الخريطة بالنقاط 1 و 2 والمسار" : "Click to view full maps with markers 1, 2 and directions"}
+                                    >
+                                      <span>🗺️</span>
+                                      <span>
+                                        {lang === "ar" 
+                                          ? "فتح خريطة التحقق الميداني والتقيد (انقر لعرض النقاط 1 و 2)" 
+                                          : "Open verified coordinates view (View points 1 & 2 path)"}
+                                      </span>
+                                      <span className="text-[10px] font-mono opacity-80 font-bold bg-primary/20 px-1.5 py-0.5 rounded-lg">
+                                        ({log.latitude?.toFixed(5)}, {log.longitude?.toFixed(5)})
+                                      </span>
+                                    </a>
+                                  </div>
+                                ) : log.geofenceName ? (
+                                  <div className="text-emerald-500 text-xs font-bold mt-2 bg-emerald-500/10 border border-emerald-500/25 px-3 py-1.5 rounded-xl inline-flex items-center gap-2 select-none">
+                                    <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                    <span>{lang === "ar" ? "نطاق الفرع المعتمد:" : "Branch Area Zone:"} {log.geofenceName}</span>
+                                    {log.latitude && (
+                                      <span className="text-[10px] font-mono opacity-85 font-normal">
+                                        ({log.latitude.toFixed(4)}, {log.longitude.toFixed(4)})
+                                      </span>
+                                    )}
+                                  </div>
+                                ) : null}
+                              </div>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </div>

@@ -21,6 +21,7 @@ export default function MobileCheckIn() {
 
   // Verification mode state and timers
   const [isVerifyLocationMode, setIsVerifyLocationMode] = useState<boolean>(false);
+  const [isVerifySingleMode, setIsVerifySingleMode] = useState<boolean>(false);
   const [verificationStep, setVerificationStep] = useState<'idle' | 'countdown' | 'ready_second' | 'saving'>('idle');
   const [countdown, setCountdown] = useState<number>(20);
   const [firstLocation, setFirstLocation] = useState<{ lat: number; lng: number; time: string } | null>(null);
@@ -40,10 +41,15 @@ export default function MobileCheckIn() {
           setCurrentMode(data.status);
           setInZone(data.status === 'In');
         }
-        if (data.assignedGeofenceId === "verify_location") {
+        if (data.assignedGeofenceId === "verify_location" || data.assignedGeofenceId === "verify_location_double") {
           setIsVerifyLocationMode(true);
+          setIsVerifySingleMode(false);
+        } else if (data.assignedGeofenceId === "verify_location_single") {
+          setIsVerifyLocationMode(false);
+          setIsVerifySingleMode(true);
         } else {
           setIsVerifyLocationMode(false);
+          setIsVerifySingleMode(false);
         }
       })
       .catch(err => console.error("Status fetch failed:", err));
@@ -60,8 +66,12 @@ export default function MobileCheckIn() {
         return;
       }
       setUser(u);
-      if (u.assignedGeofenceId === "verify_location") {
+      if (u.assignedGeofenceId === "verify_location" || u.assignedGeofenceId === "verify_location_double") {
         setIsVerifyLocationMode(true);
+        setIsVerifySingleMode(false);
+      } else if (u.assignedGeofenceId === "verify_location_single") {
+        setIsVerifyLocationMode(false);
+        setIsVerifySingleMode(true);
       }
       fetchStatus(u.id, u.companyId);
     } else {
@@ -330,7 +340,7 @@ export default function MobileCheckIn() {
               disabled={isVerifyLocationMode && currentMode === "Out" && verificationStep === "countdown"}
               className={cn(
                 "relative w-64 h-64 rounded-full flex flex-col items-center justify-center shadow-2xl active:scale-95 transition-all group overflow-hidden",
-                isVerifyLocationMode && currentMode === "Out"
+                (isVerifyLocationMode || isVerifySingleMode) && currentMode === "Out"
                   ? verificationStep === "countdown"
                     ? "bg-amber-600/5 border-4 border-amber-500/20 shadow-amber-500/5 cursor-not-allowed opacity-80"
                     : verificationStep === "ready_second"
@@ -343,15 +353,28 @@ export default function MobileCheckIn() {
             >
               <div className={cn(
                 "absolute inset-0 opacity-40 transition-opacity duration-700 group-hover:opacity-60",
-                isVerifyLocationMode && currentMode === "Out"
+                (isVerifyLocationMode || isVerifySingleMode) && currentMode === "Out"
                   ? "bg-[radial-gradient(circle_at_center,var(--color-amber-500)_0%,transparent_70%)]"
                   : currentMode === 'Out' 
                     ? "bg-[radial-gradient(circle_at_center,var(--color-emerald-500)_0%,transparent_70%)]" 
                     : "bg-[radial-gradient(circle_at_center,var(--color-amber-500)_0%,transparent_70%)]"
               )} />
               
-              {isVerifyLocationMode && currentMode === "Out" ? (
-                verificationStep === "countdown" ? (
+              {(isVerifyLocationMode || isVerifySingleMode) && currentMode === "Out" ? (
+                isVerifySingleMode ? (
+                  <div className="flex flex-col items-center justify-center z-10 text-center px-4">
+                    <div className="relative">
+                      <Fingerprint className="w-16 h-16 text-amber-500 mb-4 animate-pulse" />
+                      <MapPin className="w-6 h-6 text-amber-400 absolute -bottom-1 -right-1 animate-bounce" />
+                    </div>
+                    <span className="text-xs font-black uppercase tracking-normal text-amber-300 mb-1 leading-snug max-w-[200px]">
+                      {lang === "ar" ? "تسجيل حضور و سيتم ارسال موقعك للشركة" : "Check-in & send location to the company"}
+                    </span>
+                    <span className="text-[9px] text-white/40 tracking-wider">
+                      {lang === "ar" ? "(تحقق أحادي الموقع)" : "(Single Point Verification)"}
+                    </span>
+                  </div>
+                ) : verificationStep === "countdown" ? (
                   <div className="flex flex-col items-center justify-center z-10 animate-pulse text-center px-4">
                     <span className="text-4xl font-extrabold text-amber-400 font-mono mb-2">{countdown}s</span>
                     <span className="text-[11px] font-bold text-amber-300 uppercase tracking-wider mb-2">
@@ -401,7 +424,7 @@ export default function MobileCheckIn() {
               {/* Animated rings */}
               <div className={cn(
                 "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-72 rounded-full border-2 animate-ping",
-                isVerifyLocationMode && currentMode === "Out"
+                (isVerifyLocationMode || isVerifySingleMode) && currentMode === "Out"
                   ? "border-amber-500/20"
                   : currentMode === 'Out' 
                     ? "border-emerald-500/20" 
@@ -504,6 +527,27 @@ export default function MobileCheckIn() {
               <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shadow-[0_0_6px_var(--color-amber-400)]" />
               <p className="text-[10px] uppercase font-bold tracking-wider text-amber-400/80">
                 {lang === "ar" ? "مسار التحقق ثنائي الإحداثيات (20 ثانية)" : "Dual GPS Coordinate Track (20s)"}
+              </p>
+            </div>
+          </div>
+          <p className="text-xs font-bold text-amber-400">
+            {lang === "ar" ? "مفعل" : "Active"}
+          </p>
+        </div>
+      ) : isVerifySingleMode ? (
+        <div className="w-full bg-amber-500/10 border border-amber-500/20 rounded-3xl p-5 flex items-center gap-4 mb-2 shadow-sm relative overflow-hidden">
+          <div className="absolute right-0 top-0 w-24 h-24 bg-amber-500/5 rounded-full blur-xl -mr-6 -mt-6 pointer-events-none" />
+          <div className="w-12 h-12 bg-amber-500/20 rounded-2xl flex items-center justify-center text-amber-400">
+            <MapPin className="w-6 h-6 animate-pulse" />
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-bold text-amber-300">
+              {lang === "ar" ? "التحقق من موقع الموظف ببصمة واحدة" : "Single GPS Verification Active"}
+            </p>
+            <div className="flex items-center gap-2 mt-0.5">
+              <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shadow-[0_0_6px_var(--color-amber-400)]" />
+              <p className="text-[10px] uppercase font-bold tracking-wider text-amber-400/80">
+                {lang === "ar" ? "تسجيل الموقع وإرسال البصمة للشركة مباشرة" : "Location logged with coordinate transmission"}
               </p>
             </div>
           </div>
