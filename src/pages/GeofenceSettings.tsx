@@ -468,6 +468,28 @@ export default function GeofenceSettings() {
               )}
             </div>
           </div>
+
+          {/* New Informational Note banner for location verification features */}
+          <div className="mt-6 p-5 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex flex-col md:flex-row items-start gap-4" dir={lang === "ar" ? "rtl" : "ltr"}>
+            <div className="p-2.5 bg-amber-500/20 text-amber-400 rounded-xl shrink-0">
+              <Navigation className="w-6 h-6 rotate-45" />
+            </div>
+            <div className="space-y-1.5">
+              <h4 className="font-bold text-amber-400 text-sm">
+                {lang === "ar" ? "تلميح إداري هام: التحقق الميداني والتحقق من الحركة" : "Important Administrator Note: Travel & Location Verification"}
+              </h4>
+              <p className="text-xs text-on-surface-variant/90 leading-relaxed">
+                {lang === "ar" 
+                  ? "يمكنك إلغاء النطاقات الجغرافية التقليدية للفروع بالكامل وجعل البصمة مفتوحة للموظفين الميدانيين أو المسوقين. حيث يرسل الموظف موقعه الحالي بنقرة واحدة مباشرة، أو يتحقق المدير من بدء حركته وخروجه على الطريق عبر البصمة المزدوجة (تأخذ بصمتين تفصل بينهما 20 ثانية لتتبع قطع المسافة)." 
+                  : "You can completely bypass traditional geofences for field, sales, or marketing staff. This allows employees to either submit their current GPS coordinates instantly via a single stamp, or perform a double-stamp movement verification (two coordinates gathered 20s apart) to verify active travel."}
+              </p>
+              <p className="text-[11px] text-amber-500/90 font-semibold pt-1">
+                {lang === "ar"
+                  ? "💡 للوصول إليها وتفعيلها: اذهب إلى شاشة إدارة الموظفين (أضف/عدل موظف)، أو اذهب إلى شاشة الأقسام لتطبيق ميزة التحقق بالبصمة الواحدة أو المزدوجة على القسم بالكامل."
+                  : "💡 How to access: Go to Employees (Add/Edit Employee), or go to Departments to configure single/double location verification settings for the entire department."}
+              </p>
+            </div>
+          </div>
         </div>
       </main>
 

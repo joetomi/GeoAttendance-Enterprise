@@ -421,83 +421,193 @@ export default function DepartmentManagement() {
                   </div>
 
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest opacity-60">
-                        {lang === "ar" ? "نطاقات الفروع المعينة للقسم" : "Assigned Department Geofences"}
-                      </label>
+                    {/* Location Settings Mode */}
+                    <div className="mb-3 space-y-2">
+                      <p className="text-xs font-bold text-on-surface">
+                        {lang === "ar" ? "طريقة التحقق من الحضور وموقع القسم بالصمة" : "Department Attendance & Location Verification Method"}
+                      </p>
                       
-                      {/* All Geofences selection toggle */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const allGeofenceIds = geofences.map(gf => String(gf.id));
-                          const currentSelected = formData.assignedGeofenceId ? String(formData.assignedGeofenceId).split(",") : [];
-                          const isAllSelected = geofences.length > 0 && geofences.every(gf => currentSelected.includes(String(gf.id)));
-                          
-                          setFormData(prev => ({
-                            ...prev,
-                            assignedGeofenceId: isAllSelected ? "" : allGeofenceIds.join(",")
-                          }));
-                        }}
-                        className={cn(
-                          "px-2.5 py-1 text-[9px] font-bold rounded-lg border transition-all cursor-pointer",
-                          (geofences.length > 0 && (formData.assignedGeofenceId ? String(formData.assignedGeofenceId).split(",") : []).filter(Boolean).length === geofences.length)
-                            ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/40 hover:bg-emerald-500/30"
-                            : "bg-white/5 border-outline hover:bg-white/10 text-on-surface/80"
-                        )}
-                      >
-                        {lang === "ar" ? "✓ جميع النطاقات الفروع" : "✓ All Geofences"}
-                      </button>
+                      <div className="grid grid-cols-1 gap-2.5">
+                        {/* Option 1: Standard Geofences */}
+                        <label 
+                          className={cn(
+                            "flex items-start gap-3 p-3 rounded-2xl border transition-all cursor-pointer select-none text-xs font-semibold",
+                            (!formData.assignedGeofenceId || (formData.assignedGeofenceId !== "verify_location_single" && formData.assignedGeofenceId !== "verify_location" && formData.assignedGeofenceId !== "verify_location_double"))
+                              ? "bg-primary/10 border-primary/50 text-white shadow-lg shadow-primary/5" 
+                              : "bg-surface border-outline-variant hover:bg-white/5 text-on-surface-variant"
+                          )}
+                        >
+                          <input
+                            type="radio"
+                            name="verification_mode_dept"
+                            className="mt-0.5 w-4 h-4 border-outline accent-primary cursor-pointer text-primary bg-[#1C1C1E] focus:ring-0 focus:ring-offset-0"
+                            checked={!formData.assignedGeofenceId || (formData.assignedGeofenceId !== "verify_location_single" && formData.assignedGeofenceId !== "verify_location" && formData.assignedGeofenceId !== "verify_location_double")}
+                            onChange={() => {
+                              setFormData(prev => ({
+                                ...prev,
+                                assignedGeofenceId: ""
+                              }));
+                            }}
+                          />
+                          <div className="flex flex-col">
+                            <span className="font-bold text-primary">
+                              {lang === "ar" ? "النطاقات الجغرافية الافتراضية للفروع" : "Standard Branch Geofences"}
+                            </span>
+                            <span className="text-[10px] leading-relaxed opacity-75 mt-0.5 text-on-surface-variant">
+                              {lang === "ar" 
+                                ? "يجب على موظفي القسم التواجد داخل حدود النطاق الجغرافي المحدد لأحد الفروع للبصمة." 
+                                : "Department employees must be physically located within defined branch perimeters to check in."}
+                            </span>
+                          </div>
+                        </label>
+
+                        {/* Option 2: Single location tracking (Single fingerprint) */}
+                        <label 
+                          className={cn(
+                            "flex items-start gap-3 p-3 rounded-2xl border transition-all cursor-pointer select-none text-xs font-semibold",
+                            formData.assignedGeofenceId === "verify_location_single"
+                              ? "bg-amber-500/15 border-amber-500/50 text-white shadow-lg shadow-amber-500/5" 
+                              : "bg-surface border-outline-variant hover:bg-white/5 text-on-surface-variant"
+                          )}
+                        >
+                          <input
+                            type="radio"
+                            name="verification_mode_dept"
+                            className="mt-0.5 w-4 h-4 border-outline accent-amber-500 cursor-pointer text-amber-500 bg-[#1C1C1E] focus:ring-0 focus:ring-offset-0"
+                            checked={formData.assignedGeofenceId === "verify_location_single"}
+                            onChange={() => {
+                              setFormData(prev => ({
+                                ...prev,
+                                assignedGeofenceId: "verify_location_single"
+                              }));
+                            }}
+                          />
+                          <div className="flex flex-col">
+                            <span className="font-bold text-amber-400">
+                              {lang === "ar" ? "التحقق من موقع موظفي القسم ببصمة واحدة" : "Verify Location (Single check-in)"}
+                            </span>
+                            <span className="text-[10px] leading-relaxed opacity-75 mt-0.5 text-on-surface-variant">
+                              {lang === "ar" 
+                                ? "يلغي النطاقات بالكامل. يبصم الموظف بصمة واحدة ترسل موقعه الحالي على الخريطة مباشرة للمدير من أي مكان تواجده." 
+                                : "Disables geofence perimeters. Employee does a single check-in that sends their current GPS coordinates immediately."}
+                            </span>
+                          </div>
+                        </label>
+
+                        {/* Option 3: Double location verification (Double fingerprint) */}
+                        <label 
+                          className={cn(
+                            "flex items-start gap-3 p-3 rounded-2xl border transition-all cursor-pointer select-none text-xs font-semibold",
+                            (formData.assignedGeofenceId === "verify_location" || formData.assignedGeofenceId === "verify_location_double")
+                              ? "bg-amber-500/15 border-amber-500/50 text-white shadow-lg shadow-amber-500/5" 
+                              : "bg-surface border-outline-variant hover:bg-white/5 text-on-surface-variant"
+                          )}
+                        >
+                          <input
+                            type="radio"
+                            name="verification_mode_dept"
+                            className="mt-0.5 w-4 h-4 border-outline accent-amber-500 cursor-pointer text-amber-500 bg-[#1C1C1E] focus:ring-0 focus:ring-offset-0"
+                            checked={formData.assignedGeofenceId === "verify_location" || formData.assignedGeofenceId === "verify_location_double"}
+                            onChange={() => {
+                              setFormData(prev => ({
+                                ...prev,
+                                assignedGeofenceId: "verify_location"
+                              }));
+                            }}
+                          />
+                          <div className="flex flex-col">
+                            <span className="font-bold text-amber-400">
+                              {lang === "ar" ? "التحقق من الحركة ببصمتين (بينهم 20 ثانية)" : "Verify Movement (Double check-ins, 20s apart)"}
+                            </span>
+                            <span className="text-[10px] leading-relaxed opacity-75 mt-0.5 text-on-surface-variant">
+                              {lang === "ar" 
+                                ? "يلغي النطاقات بالكامل. يطلب قطعتين من الموقع بفارق 20 ثانية للتأكد من خروج الموظف للميدان/التسويق وبدء تحركه." 
+                                : "Disables geofences. Takes two location coordinates 20s apart to verify active travel and movement start."}
+                            </span>
+                          </div>
+                        </label>
+                      </div>
                     </div>
 
-                    {geofences.length === 0 ? (
-                      <p className="text-xs text-on-surface-variant/60 italic p-3 bg-[#1A1A1A] border border-outline-variant rounded-xl">
-                        {lang === "ar" ? "الرجاء إضافة نطاقات أولاً" : "Please add geofences first"}
-                      </p>
-                    ) : (
-                      <div className="grid grid-cols-1 gap-2 max-h-[140px] overflow-y-auto p-2 bg-[#1A1A1A] border border-outline-variant rounded-2xl">
-                        {geofences.map((gf) => {
-                          const currentSelected = formData.assignedGeofenceId 
-                            ? String(formData.assignedGeofenceId).split(",").map(x => x.trim()).filter(Boolean) 
-                            : [];
-                          const isChecked = currentSelected.includes(String(gf.id));
-                          return (
-                            <label 
-                              key={gf.id} 
-                              className={cn(
-                                "flex items-center gap-3 p-2.5 rounded-xl border transition-all cursor-pointer select-none text-xs font-semibold",
-                                isChecked 
-                                  ? "bg-primary/15 border-primary/50 text-white" 
-                                  : "bg-surface border-outline-variant hover:bg-white/5 text-on-surface-variant"
-                              )}
-                            >
-                              <input
-                                type="checkbox"
-                                className="w-4 h-4 rounded border-outline accent-primary cursor-pointer text-primary bg-[#1C1C1E]"
-                                checked={isChecked}
-                                onChange={() => {
-                                  let updated: string[] = [];
-                                  if (isChecked) {
-                                    updated = currentSelected.filter(id => id !== String(gf.id));
-                                  } else {
-                                    updated = [...currentSelected, String(gf.id)];
-                                  }
-                                  const filtered = updated.map(x => x.trim()).filter(Boolean);
-                                  setFormData(prev => ({
-                                    ...prev,
-                                    assignedGeofenceId: filtered.join(",")
-                                  }));
-                                }}
-                              />
-                              <div className="truncate flex flex-col">
-                                <span className="font-bold text-on-surface">{gf.name}</span>
-                                <span className="text-[9px] opacity-65 text-on-surface-variant font-mono">
-                                  {gf.latitude.toFixed(4)}, {gf.longitude.toFixed(4)}
-                                </span>
-                              </div>
-                            </label>
-                          );
-                        })}
+                    {(!formData.assignedGeofenceId || (formData.assignedGeofenceId !== "verify_location_single" && formData.assignedGeofenceId !== "verify_location" && formData.assignedGeofenceId !== "verify_location_double")) && (
+                      <div className="space-y-3 pt-2">
+                        <div className="flex items-center justify-between">
+                          <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-widest opacity-60">
+                            {lang === "ar" ? "نطاقات الفروع المعينة للقسم" : "Assigned Department Geofences"}
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const allGeofenceIds = geofences.map(gf => String(gf.id));
+                              const currentSelected = formData.assignedGeofenceId ? String(formData.assignedGeofenceId).split(",") : [];
+                              const isAllSelected = geofences.length > 0 && geofences.every(gf => currentSelected.includes(String(gf.id)));
+                              
+                              setFormData(prev => ({
+                                ...prev,
+                                assignedGeofenceId: isAllSelected ? "" : allGeofenceIds.join(",")
+                              }));
+                            }}
+                            className={cn(
+                              "px-2.5 py-1 text-[9px] font-bold rounded-lg border transition-all cursor-pointer",
+                              (geofences.length > 0 && (formData.assignedGeofenceId ? String(formData.assignedGeofenceId).split(",") : []).filter(Boolean).length === geofences.length)
+                                ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/40 hover:bg-emerald-500/30"
+                                : "bg-white/5 border-outline hover:bg-white/10 text-on-surface/80"
+                            )}
+                          >
+                            {lang === "ar" ? "✓ جميع النطاقات الفروع" : "✓ All Geofences"}
+                          </button>
+                        </div>
+
+                        {geofences.length === 0 ? (
+                          <p className="text-xs text-on-surface-variant/60 italic p-3 bg-[#1A1A1A] border border-outline-variant rounded-xl">
+                            {lang === "ar" ? "الرجاء إضافة نطاقات أولاً" : "Please add geofences first"}
+                          </p>
+                        ) : (
+                          <div className="grid grid-cols-1 gap-2 max-h-[140px] overflow-y-auto p-2 bg-[#1A1A1A] border border-outline-variant rounded-2xl">
+                            {geofences.map((gf) => {
+                              const currentSelected = formData.assignedGeofenceId 
+                                ? String(formData.assignedGeofenceId).split(",").map(x => x.trim()).filter(Boolean) 
+                                : [];
+                              const isChecked = currentSelected.includes(String(gf.id));
+                              return (
+                                <label 
+                                  key={gf.id} 
+                                  className={cn(
+                                    "flex items-center gap-3 p-2.5 rounded-xl border transition-all cursor-pointer select-none text-xs font-semibold",
+                                    isChecked 
+                                      ? "bg-primary/15 border-primary/50 text-white" 
+                                      : "bg-surface border-outline-variant hover:bg-white/5 text-on-surface-variant"
+                                  )}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    className="w-4 h-4 rounded border-outline accent-primary cursor-pointer text-primary bg-[#1C1C1E]"
+                                    checked={isChecked}
+                                    onChange={() => {
+                                      let updated: string[] = [];
+                                      if (isChecked) {
+                                        updated = currentSelected.filter(id => id !== String(gf.id));
+                                      } else {
+                                        updated = [...currentSelected.filter(id => id !== "verify_location" && id !== "verify_location_single" && id !== "verify_location_double"), String(gf.id)];
+                                      }
+                                      const filtered = updated.map(x => x.trim()).filter(Boolean);
+                                      setFormData(prev => ({
+                                        ...prev,
+                                        assignedGeofenceId: filtered.join(",")
+                                      }));
+                                    }}
+                                  />
+                                  <div className="truncate flex flex-col">
+                                    <span className="font-bold text-on-surface">{gf.name}</span>
+                                    <span className="text-[9px] opacity-65 text-on-surface-variant font-mono">
+                                      {gf.latitude.toFixed(4)}, {gf.longitude.toFixed(4)}
+                                    </span>
+                                  </div>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

@@ -128,7 +128,9 @@ async function getPool() {
           EXEC('ALTER TABLE AttendanceLogs ADD longitude FLOAT');
 
         IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('AttendanceLogs') AND name = 'geofenceName')
-          EXEC('ALTER TABLE AttendanceLogs ADD geofenceName NVARCHAR(100)');
+          EXEC('ALTER TABLE AttendanceLogs ADD geofenceName NVARCHAR(1000)');
+        ELSE
+          EXEC('ALTER TABLE AttendanceLogs ALTER COLUMN geofenceName NVARCHAR(1000)');
 
         IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='Notifications' AND xtype='U')
         BEGIN
@@ -1009,10 +1011,36 @@ async function startServer() {
        }
     }
 
+    // Handle verification location model (single-point bypass check-in)
+    if (assignedGeofenceId === "verify_location_single") {
+      const id = Math.random().toString(36).substr(2, 9);
+      const timestamp = new Date();
+      const gfName = "تحقق الموقع ببصمة واحدة | Location Verify Single";
+      if (db) {
+        try {
+          await db.request()
+            .input("id", sql.NVarChar, id)
+            .input("employeeId", sql.NVarChar, employeeId)
+            .input("timestamp", sql.DateTimeOffset, timestamp)
+            .input("status", sql.NVarChar, "In")
+            .input("companyId", sql.NVarChar, companyId)
+            .input("lat", sql.Float, lat || 32.3743)
+            .input("lng", sql.Float, lng || 15.0904)
+            .input("gfName", sql.NVarChar, gfName)
+            .query("INSERT INTO AttendanceLogs (id, employeeId, timestamp, status, companyId, latitude, longitude, geofenceName) VALUES (@id, @employeeId, @timestamp, @status, @companyId, @lat, @lng, @gfName)");
+          return res.json({ success: true, log: { id, employeeId, timestamp, status: "In", companyId, geofenceName: gfName } });
+        } catch (dbErr) {
+          console.error("Single verification database insert failed:", dbErr);
+          return res.status(500).json({ error: "Failed to record single-location verification logs" });
+        }
+      } else {
+        return res.json({ success: true, log: { id, employeeId, timestamp, status: "In", companyId, geofenceName: gfName } });
+      }
+    }
+
     // Handle verification location model (double point check-in)
-    if (isDoubleVerification || assignedGeofenceId === "verify_location") {
-      const id1 = Math.random().toString(36).substr(2, 9);
-      const id2 = Math.random().toString(36).substr(2, 9);
+    if (isDoubleVerification || assignedGeofenceId === "verify_location" || assignedGeofenceId === "verify_location_double") {
+      const id = Math.random().toString(36).substr(2, 9);
 
       const lat1 = loc1 && loc1.lat ? loc1.lat : (lat ? lat - 0.0003 : 32.3743);
       const lng1 = loc1 && loc1.lng ? loc1.lng : (lng ? lng - 0.0003 : 15.0904);
@@ -1022,42 +1050,33 @@ async function startServer() {
       const lng2 = loc2 && loc2.lng ? loc2.lng : (lng || 15.0904);
       const time2 = loc2 && loc2.time ? new Date(loc2.time) : new Date();
 
-      const name1 = "التحقق الثنائي (موقع 1/2) | Double Loc (1/2)";
-      const name2 = "التحقق الثنائي (موقع 2/2) | Double Loc (2/2)";
+      // We serialize both points in JSON inside geofenceName
+      const serialized = JSON.stringify({
+        loc1: { lat: lat1, lng: lng1, time: time1.toISOString ? time1.toISOString() : String(time1) },
+        loc2: { lat: lat2, lng: lng2, time: time2.toISOString ? time2.toISOString() : String(time2) }
+      });
+      const gfName = "verify_double:" + serialized;
 
       if (db) {
         try {
-          // Log Point 1
           await db.request()
-            .input("id", sql.NVarChar, id1)
-            .input("employeeId", sql.NVarChar, employeeId)
-            .input("timestamp", sql.DateTimeOffset, time1)
-            .input("status", sql.NVarChar, "In")
-            .input("companyId", sql.NVarChar, companyId)
-            .input("lat", sql.Float, lat1)
-            .input("lng", sql.Float, lng1)
-            .input("gfName", sql.NVarChar, name1)
-            .query("INSERT INTO AttendanceLogs (id, employeeId, timestamp, status, companyId, latitude, longitude, geofenceName) VALUES (@id, @employeeId, @timestamp, @status, @companyId, @lat, @lng, @gfName)");
-
-          // Log Point 2
-          await db.request()
-            .input("id", sql.NVarChar, id2)
+            .input("id", sql.NVarChar, id)
             .input("employeeId", sql.NVarChar, employeeId)
             .input("timestamp", sql.DateTimeOffset, time2)
             .input("status", sql.NVarChar, "In")
             .input("companyId", sql.NVarChar, companyId)
             .input("lat", sql.Float, lat2)
             .input("lng", sql.Float, lng2)
-            .input("gfName", sql.NVarChar, name2)
+            .input("gfName", sql.NVarChar, gfName)
             .query("INSERT INTO AttendanceLogs (id, employeeId, timestamp, status, companyId, latitude, longitude, geofenceName) VALUES (@id, @employeeId, @timestamp, @status, @companyId, @lat, @lng, @gfName)");
 
-          return res.json({ success: true, isDouble: true, log: { id: id2, employeeId, timestamp: time2, status: "In", companyId, geofenceName: name2 } });
+          return res.json({ success: true, isDouble: true, log: { id, employeeId, timestamp: time2, status: "In", companyId, geofenceName: gfName } });
         } catch (dbErr) {
           console.error("Double verification database insert failed:", dbErr);
           return res.status(500).json({ error: "Failed to record double-location verification logs" });
         }
       } else {
-        return res.json({ success: true, isDouble: true, log: { id: id2, employeeId, timestamp: time2, status: "In", companyId, geofenceName: name2 } });
+        return res.json({ success: true, isDouble: true, log: { id, employeeId, timestamp: time2, status: "In", companyId, geofenceName: gfName } });
       }
     }
 
@@ -1170,7 +1189,7 @@ async function startServer() {
         console.error("Failed to find employee company during check-out:", err);
       }
 
-      if (assignedGeofenceId === "verify_location") {
+      if (assignedGeofenceId === "verify_location" || assignedGeofenceId === "verify_location_double" || assignedGeofenceId === "verify_location_single") {
         const id = Math.random().toString(36).substr(2, 9);
         const timestamp = new Date();
         const gfName = "تسجيل الخروج المباشر | Direct Checkout";
