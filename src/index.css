@@ -5,49 +5,42 @@
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 
-  /* Forest & Mint Enterprise Colors (Luminous Base) */
-  --color-primary: #0ea5e9;
-  --color-primary-container: #0d9488;
-  --color-on-primary-container: #f0fdfa;
+  /* Forest Enterprise Colors */
+  --color-primary: #10b981;
+  --color-primary-container: #064e3b;
+  --color-on-primary-container: #ecfdf5;
   
-  --color-secondary: #0d9488;
-  --color-secondary-container: #14b8a6;
-  --color-on-secondary-container: #f0fdfa;
+  --color-secondary: #059669;
+  --color-secondary-container: #065f46;
+  --color-on-secondary-container: #ecfdf5;
   
-  --color-surface: #f8fafc;
-  --color-surface-container: #ffffff;
-  --color-surface-container-high: #f1f5f9;
-  --color-on-surface: #0f172a;
-  --color-on-surface-variant: #475569;
+  --color-surface: #09090b;
+  --color-surface-container: #18181b;
+  --color-surface-container-high: #27272a;
+  --color-on-surface: #f4f4f5;
+  --color-on-surface-variant: #a1a1aa;
   
-  --color-outline: #cbd5e1;
-  --color-outline-variant: #e2e8f0;
+  --color-outline: #3f3f46;
+  --color-outline-variant: #27272a;
   
   --color-error: #ef4444;
-  --color-error-container: #fee2e2;
+  --color-error-container: #450a0a;
 
   /* Background Patterns */
-  --pattern-stars: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300' viewBox='0 0 300 300'%3E%3Ccircle cx='50' cy='50' r='1.2' fill='%230d9488' fill-opacity='0.08'/%3E%3Ccircle cx='120' cy='30' r='1.8' fill='%230ea5e9' fill-opacity='0.08'/%3E%3Ccircle cx='250' cy='80' r='1.5' fill='%2314b8a6' fill-opacity='0.06'/%3E%3Ccircle cx='180' cy='150' r='1.2' fill='%230d9488' fill-opacity='0.08'/%3E%3Ccircle cx='30' cy='220' r='1.5' fill='%230ea5e9' fill-opacity='0.07'/%3E%3Ccircle cx='140' cy='270' r='1.2' fill='%2314b8a6' fill-opacity='0.08'/%3E%3Ccircle cx='280' cy='230' r='1.8' fill='%230d9488' fill-opacity='0.06'/%3E%3Ccircle cx='210' cy='40' r='1.5' fill='%230ea5e9' fill-opacity='0.1'/%3E%3C/svg%3E");
-  --pattern-wavy: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 180 180'%3E%3Cpath d='M0 20 Q 45 0, 90 20 T 180 20' fill='none' stroke='rgba(13, 148, 136, 0.04)' stroke-width='1.5'/%3E%3Cpath d='M0 50 Q 45 30, 90 50 T 180 50' fill='none' stroke='rgba(20, 184, 166, 0.04)' stroke-width='1.5'/%3E%3Cpath d='M0 80 Q 45 60, 90 80 T 180 80' fill='none' stroke='rgba(13, 148, 136, 0.04)' stroke-width='1.5'/%3E%3Cpath d='M0 110 Q 45 90, 90 110 T 180 110' fill='none' stroke='rgba(14, 165, 233, 0.04)' stroke-width='1.5'/%3E%3Cpath d='M0 140 Q 45 120, 90 140 T 180 140' fill='none' stroke='rgba(13, 148, 136, 0.04)' stroke-width='1.5'/%3E%3Cpath d='M0 170 Q 45 150, 90 170 T 180 170' fill='none' stroke='rgba(20, 184, 166, 0.04)' stroke-width='1.5'/%3E%3C/svg%3E");
+  --pattern-stars: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300' viewBox='0 0 300 300'%3E%3Ccircle cx='50' cy='50' r='0.8' fill='white' fill-opacity='0.15'/%3E%3Ccircle cx='120' cy='30' r='1.2' fill='white' fill-opacity='0.1'/%3E%3Ccircle cx='250' cy='80' r='1' fill='white' fill-opacity='0.12'/%3E%3Ccircle cx='180' cy='150' r='0.6' fill='white' fill-opacity='0.14'/%3E%3Ccircle cx='30' cy='220' r='1' fill='white' fill-opacity='0.11'/%3E%3Ccircle cx='140' cy='270' r='0.8' fill='white' fill-opacity='0.13'/%3E%3Ccircle cx='280' cy='230' r='1.1' fill='white' fill-opacity='0.1'/%3E%3Ccircle cx='210' cy='40' r='0.7' fill='white' fill-opacity='0.15'/%3E%3C/svg%3E");
+  --pattern-wavy: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 180 180'%3E%3Cpath d='M0 20 Q 45 0, 90 20 T 180 20' fill='none' stroke='rgba(255, 255, 255, 0.04)' stroke-width='1'/%3E%3Cpath d='M0 50 Q 45 30, 90 50 T 180 50' fill='none' stroke='rgba(255, 255, 255, 0.04)' stroke-width='1'/%3E%3Cpath d='M0 80 Q 45 60, 90 80 T 180 80' fill='none' stroke='rgba(255, 255, 255, 0.04)' stroke-width='1'/%3E%3Cpath d='M0 110 Q 45 90, 90 110 T 180 110' fill='none' stroke='rgba(255, 255, 255, 0.04)' stroke-width='1'/%3E%3Cpath d='M0 140 Q 45 120, 90 140 T 180 140' fill='none' stroke='rgba(255, 255, 255, 0.04)' stroke-width='1'/%3E%3Cpath d='M0 170 Q 45 150, 90 170 T 180 170' fill='none' stroke='rgba(255, 255, 255, 0.04)' stroke-width='1'/%3E%3C/svg%3E");
+  --pattern-pewdiepie: none;
 }
 
 @layer base {
   body {
-    background: radial-gradient(circle at 10% 20%, #fbfcff 0%, #f4f9f7 40%, #eef6f5 100%);
-    @apply text-on-surface font-sans transition-all duration-300 antialiased selection:bg-secondary/20 min-h-screen relative;
+    @apply bg-surface text-on-surface font-sans;
   }
 }
 
 @layer components {
-  /* Glistening Cards with spring lift and soft cyanic glow bounds */
   .card {
-    @apply bg-surface-container border border-outline-variant/60 rounded-3xl shadow-[0_4px_24px_rgba(15,23,42,0.02)] overflow-hidden transition-all duration-300;
-    backdrop-filter: blur(8px);
-  }
-  
-  .card:hover {
-    transform: translateY(-4px) scale(1.006);
-    @apply border-secondary/30 shadow-[0_12px_32px_rgba(13,148,136,0.06)];
+    @apply bg-surface-container border border-outline-variant rounded-xl shadow-sm overflow-hidden;
   }
   
   .bg-stars {
@@ -60,82 +53,37 @@
   }
 
   .bg-sidebar-pattern {
-    background: linear-gradient(135deg, rgba(13, 148, 136, 0.04) 0%, rgba(20, 184, 166, 0.04) 100%);
+    display: none;
   }
 
   .input-label {
-    @apply text-xs font-black uppercase tracking-wider text-on-surface-variant/80 mb-1 block;
+    @apply text-xs font-medium uppercase tracking-wider text-on-surface-variant mb-1 block;
   }
   
   .input-field {
-    @apply w-full px-4 py-3 rounded-2xl border border-outline bg-surface/50 focus:bg-surface-container focus:border-secondary focus:ring-4 focus:ring-secondary/15 transition-all duration-300 outline-none text-base text-on-surface shadow-sm;
-  }
-
-  .input-field:hover {
-    @apply border-secondary/55;
+    @apply w-full px-4 py-3 rounded-lg border border-outline focus:border-secondary focus:ring-2 focus:ring-secondary/20 transition-all outline-none text-base;
   }
   
-  /* Luminous Shiny Luxury Buttons */
   .btn-primary {
-    position: relative;
-    overflow: hidden;
-    background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
-    @apply text-white px-6 py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 active:scale-95 transition-all duration-200 shadow-[0_4px_16px_rgba(13,148,136,0.25)] hover:shadow-[0_6px_24px_rgba(13,148,136,0.35)] cursor-pointer select-none border border-secondary/30;
+    @apply bg-primary-container text-white px-6 py-3 rounded-lg font-medium flex items-center justify-center gap-2 hover:opacity-90 active:scale-95 transition-all shadow-sm;
   }
-
-  .btn-primary::after {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 60%;
-    height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.25), transparent);
-    transform: skewX(-20deg);
-    transition: none;
-  }
-
-  .btn-primary:hover::after {
-    left: 180%;
-    transition: left 0.95s ease-out;
-  }
-
+  
   .btn-secondary {
-    position: relative;
-    overflow: hidden;
-    background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
-    @apply text-white px-6 py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 active:scale-95 transition-all duration-200 shadow-[0_4px_16px_rgba(14,165,233,0.2)] hover:shadow-[0_6px_24px_rgba(14,165,233,0.3)] cursor-pointer select-none border border-primary/20;
-  }
-
-  .btn-secondary::after {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 60%;
-    height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.25), transparent);
-    transform: skewX(-20deg);
-    transition: none;
-  }
-
-  .btn-secondary:hover::after {
-    left: 180%;
-    transition: left 0.95s ease-out;
+    @apply bg-secondary text-white px-6 py-3 rounded-lg font-medium flex items-center justify-center gap-2 hover:opacity-90 active:scale-95 transition-all shadow-sm;
   }
 
   .animate-enter {
-    animation: enter 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation: enter 0.3s ease-out forwards;
   }
 
   .animate-leave {
-    animation: leave 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation: leave 0.2s ease-in forwards;
   }
 
   @keyframes enter {
     from {
       opacity: 0;
-      transform: translateY(-8px) scale(0.97);
+      transform: translateY(-10px) scale(0.95);
     }
     to {
       opacity: 1;
@@ -150,34 +98,7 @@
     }
     to {
       opacity: 0;
-      transform: scale(0.97);
+      transform: scale(0.95);
     }
-  }
-}
-
-/* Beautiful Interactive Custom Animations on list items and links */
-a, button {
-  @apply transition-all duration-255;
-}
-
-/* Gorgeous Leaflet Override styles for premium map look */
-.leaflet-container {
-  border-radius: 24px;
-  overflow: hidden;
-  border: 1px solid var(--color-outline-variant) !important;
-}
-
-/* Custom Glistening Glow effect for critical nodes */
-.glistening-glow {
-  box-shadow: 0 0 15px rgba(13, 148, 136, 0.3);
-  animation: pulsating-emerald-glow 2.5s infinite alternate ease-in-out;
-}
-
-@keyframes pulsating-emerald-glow {
-  0% {
-    box-shadow: 0 0 8px rgba(13, 148, 136, 0.15);
-  }
-  100% {
-    box-shadow: 0 0 20px rgba(13, 148, 136, 0.4);
   }
 }

@@ -122,56 +122,42 @@ export function MobileMenu({ isOpen, onClose }: { isOpen: boolean; onClose: () =
                 </button>
               </div>
 
-              <nav className="flex-1 flex flex-col mt-4 gap-1 px-2">
+              <nav className="flex-1 flex flex-col mt-4">
                 {navItems.map((item) => {
                   const isActive = location.pathname === item.path;
 
                   if (item.locked) {
                     return (
-                      <motion.div
+                      <button
                         key={item.path}
-                        whileHover={{ scale: 1.02, x: lang === "ar" ? -4 : 4, backgroundColor: "rgba(255,255,255,0.04)" }}
-                        whileTap={{ scale: 0.98 }}
-                        transition={{ type: "spring", stiffness: 350, damping: 18 }}
-                        className="rounded-2xl overflow-hidden"
+                        onClick={handleLockedClick}
+                        className={cn(
+                          "w-full flex items-center gap-3 px-6 py-4 transition-all duration-200 border-primary border-transparent text-white/30 hover:bg-white/5 hover:text-white/40 cursor-pointer",
+                          lang === "ar" ? "text-right flex-row-reverse justify-end" : "text-left justify-start"
+                        )}
                       >
-                        <button
-                          onClick={handleLockedClick}
-                          className={cn(
-                            "w-full flex items-center gap-3 px-5 py-3.5 transition-all duration-200 border-transparent text-white/35 cursor-pointer",
-                            lang === "ar" ? "text-right flex-row-reverse justify-end" : "text-left justify-start"
-                          )}
-                        >
-                          <item.icon className="w-5 h-5 opacity-40 shrink-0" />
-                          <span className="text-sm font-medium">{item.label}</span>
-                          <Crown className="w-4 h-4 text-amber-400 shrink-0 animate-pulse ms-auto" />
-                        </button>
-                      </motion.div>
+                        <item.icon className="w-5 h-5 opacity-40 shrink-0" />
+                        <span className="text-sm font-medium">{item.label}</span>
+                        <Crown className="w-4 h-4 text-amber-400 shrink-0 animate-pulse ms-auto" />
+                      </button>
                     );
                   }
 
                   return (
-                    <motion.div
+                    <Link
                       key={item.path}
-                      whileHover={{ scale: 1.03, x: lang === "ar" ? -6 : 6, backgroundColor: "rgba(255,255,255,0.06)" }}
-                      whileTap={{ scale: 0.98 }}
-                      transition={{ type: "spring", stiffness: 400, damping: 20 }}
-                      className="rounded-2xl overflow-hidden"
+                      to={item.path}
+                      onClick={onClose}
+                      className={cn(
+                        "flex items-center gap-3 px-6 py-4 transition-all duration-200 border-primary",
+                        isActive 
+                          ? cn("bg-white/10 text-white", lang === "ar" ? "border-r-4" : "border-l-4")
+                          : "border-transparent text-white/50 hover:bg-white/5 hover:text-white"
+                      )}
                     >
-                      <Link
-                        to={item.path}
-                        onClick={onClose}
-                        className={cn(
-                          "flex items-center gap-3 px-5 py-3.5 transition-all duration-200 border-primary",
-                          isActive 
-                            ? cn("bg-white/12 text-white font-bold", lang === "ar" ? "border-r-4" : "border-l-4")
-                            : "border-transparent text-white/60 hover:text-white"
-                        )}
-                      >
-                        <item.icon className="w-5 h-5 shrink-0" />
-                        <span className="text-sm font-medium">{item.label}</span>
-                      </Link>
-                    </motion.div>
+                      <item.icon className="w-5 h-5 shrink-0" />
+                      <span className="text-sm font-medium">{item.label}</span>
+                    </Link>
                   );
                 })}
               </nav>
@@ -320,55 +306,41 @@ export function Sidebar({ className }: SidebarProps) {
           </div>
         </div>
 
-        <nav className="flex-1 flex flex-col mt-4 gap-1 px-2">
+        <nav className="flex-1 flex flex-col mt-4">
           {navItems.map((item) => {
             const isActive = location.pathname === item.path;
 
             if (item.locked) {
               return (
-                <motion.div
+                <button
                   key={item.path}
-                  whileHover={{ scale: 1.02, x: lang === "ar" ? -4 : 4, backgroundColor: "rgba(255,255,255,0.04)" }}
-                  whileTap={{ scale: 0.98 }}
-                  transition={{ type: "spring", stiffness: 350, damping: 18 }}
-                  className="rounded-2xl overflow-hidden"
+                  onClick={handleLockedClick}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-6 py-4 transition-all duration-200 border-primary border-transparent text-white/30 hover:bg-white/5 hover:text-white/40 cursor-pointer",
+                    lang === "ar" ? "text-right flex-row-reverse justify-end" : "text-left justify-start"
+                  )}
                 >
-                  <button
-                    onClick={handleLockedClick}
-                    className={cn(
-                      "w-full flex items-center gap-3 px-5 py-3.5 transition-all duration-200 border-transparent text-white/35 cursor-pointer",
-                      lang === "ar" ? "text-right flex-row-reverse justify-end" : "text-left justify-start"
-                    )}
-                  >
-                    <item.icon className="w-5 h-5 opacity-40 shrink-0" />
-                    <span className="text-sm font-medium">{item.label}</span>
-                    <Crown className="w-4 h-4 text-amber-400 shrink-0 animate-pulse ms-auto" />
-                  </button>
-                </motion.div>
+                  <item.icon className="w-5 h-5 opacity-40 shrink-0" />
+                  <span className="text-sm font-medium">{item.label}</span>
+                  <Crown className="w-4 h-4 text-amber-400 shrink-0 animate-pulse ms-auto" />
+                </button>
               );
             }
 
             return (
-              <motion.div
+              <Link
                 key={item.path}
-                whileHover={{ scale: 1.03, x: lang === "ar" ? -6 : 6, backgroundColor: "rgba(255,255,255,0.06)" }}
-                whileTap={{ scale: 0.98 }}
-                transition={{ type: "spring", stiffness: 400, damping: 20 }}
-                className="rounded-2xl overflow-hidden"
+                to={item.path}
+                className={cn(
+                  "flex items-center gap-3 px-6 py-4 transition-all duration-200 border-primary",
+                  isActive 
+                    ? cn("bg-white/10 text-white", lang === "ar" ? "border-r-4" : "border-l-4")
+                    : "border-transparent text-white/50 hover:bg-white/5 hover:text-white"
+                )}
               >
-                <Link
-                  to={item.path}
-                  className={cn(
-                    "flex items-center gap-3 px-5 py-3.5 transition-all duration-200 border-primary",
-                    isActive 
-                      ? cn("bg-white/12 text-white font-bold", lang === "ar" ? "border-r-4" : "border-l-4")
-                      : "border-transparent text-white/60 hover:text-white"
-                  )}
-                >
-                  <item.icon className="w-5 h-5 shrink-0" />
-                  <span className="text-sm font-medium">{item.label}</span>
-                </Link>
-              </motion.div>
+                <item.icon className="w-5 h-5 shrink-0" />
+                <span className="text-sm font-medium">{item.label}</span>
+              </Link>
             );
           })}
         </nav>

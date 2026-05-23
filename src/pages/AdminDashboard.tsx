@@ -707,6 +707,8 @@ export default function AdminDashboard() {
 
                       // Parse start & confirm coordinates for double stamp, or fallback for single stamp
                       let loc1 = null, loc2 = null;
+                      const isDouble = !!(log.geofenceName && log.geofenceName.startsWith("verify_double:"));
+                      
                       if (log.geofenceName && log.geofenceName.startsWith("verify_double:")) {
                         try {
                           const parsed = JSON.parse(log.geofenceName.replace("verify_double:", ""));
@@ -720,11 +722,8 @@ export default function AdminDashboard() {
                       if (!loc2) {
                         loc2 = { lat: log.latitude || 32.3743, lng: log.longitude || 15.0904 };
                       }
-                      if (!loc1) {
-                        loc1 = { lat: 32.374332461501005, lng: 15.090419235262685 }; // Standard HQ fallback coordinates
-                      }
-
-                      const mapUrl = `/map-view?lat1=${loc1.lat}&lng1=${loc1.lng}&lat2=${loc2.lat}&lng2=${loc2.lng}&label1=${encodeURIComponent(log.geofenceName && log.geofenceName.startsWith("verify_double:") ? (lang === "ar" ? "البصمة الأولى (بدء)" : "First Stamp (1/2)") : (lang === "ar" ? "تحديد الفرع المرجعي (HQ)" : "HQ Reference Base (1/2)"))}&label2=${encodeURIComponent(lang === "ar" ? "موقع الحضور الفعلي للموظف" : "Actual Stamp Coordinate (2/2)")}&emp=${encodeURIComponent(log.employeeName || "")}&lang=${lang}`;
+                      
+                      const mapUrl = `/map-view?lat1=${loc1 ? loc1.lat : ""}&lng1=${loc1 ? loc1.lng : ""}&lat2=${loc2.lat}&lng2=${loc2.lng}&label1=${encodeURIComponent(isDouble ? (lang === "ar" ? "البصمة الأولى (بدء)" : "First Stamp (1/2)") : "")}&label2=${encodeURIComponent(lang === "ar" ? (isDouble ? "البصمة الثانية (تأكيد)" : "موقع البصمة الميدانية") : (isDouble ? "Second Stamp (2/2)" : "Field Stamp Coordinate"))}&emp=${encodeURIComponent(log.employeeName || "")}&lang=${lang}&isDouble=${isDouble}`;
 
                       return (
                         <div key={`${log.id || 'log'}-${idx}`} className="relative pl-6 pb-6 border-l-2 border-outline-variant last:pb-0 rtl:pl-0 rtl:pr-6 rtl:border-l-0 rtl:border-r-2 group">
@@ -761,25 +760,31 @@ export default function AdminDashboard() {
                                   <div className="mt-3 flex flex-wrap items-center gap-3">
                                     <span className="text-amber-500 text-xs font-bold bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-xl flex items-center gap-1.5 shadow-sm">
                                       <span className="inline-block w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-                                      {lang === "ar" ? "تحقق الأقمار الصناعية (ميداني وبصمة واحدة/ثنائية)" : "Satellite GPS Verified"}
+                                      {lang === "ar" 
+                                        ? (isDouble ? "تحقق الأقمار الصناعية (بصمة ثنائية متتالية)" : "تحقق الأقمار الصناعية (بصمة ميدانية منفردة)")
+                                        : (isDouble ? "Satellite GPS (Dual Stamp Verification)" : "Satellite GPS (Single Field Stamp)")}
                                     </span>
-                                    <a
-                                      href={mapUrl}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="text-xs text-primary font-black underline hover:text-primary-high transition-all flex items-center gap-2 bg-primary/15 hover:bg-primary/25 px-3 py-1.5 rounded-xl border border-primary/20 hover:scale-[1.02] shadow-sm select-none"
-                                      title={lang === "ar" ? "اضغط لفتح الخريطة بالنقاط 1 و 2 والمسار" : "Click to view full maps with markers 1, 2 and directions"}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedDoubleLocLog(log);
+                                        setShowDoubleLocModal(true);
+                                      }}
+                                      className="text-xs text-primary font-black underline hover:text-primary-high transition-all flex items-center gap-2 bg-primary/15 hover:bg-primary/25 px-3 py-1.5 rounded-xl border border-primary/20 hover:scale-[1.02] shadow-sm select-none cursor-pointer"
+                                      title={lang === "ar" 
+                                        ? (isDouble ? "اضغط لفتح الخريطة بالبصمتين والمسافة الفاصلة" : "اضغط لمشاهدة موقع البصمة الميدانية بدون مقارنة")
+                                        : (isDouble ? "Click to view dynamic path between stamps" : "Click to view standalone field stamp on map")}
                                     >
                                       <span>🗺️</span>
                                       <span>
                                         {lang === "ar" 
-                                          ? "فتح خريطة التحقق الميداني والتقيد (انقر لعرض النقاط 1 و 2)" 
-                                          : "Open verified coordinates view (View points 1 & 2 path)"}
+                                          ? (isDouble ? "فتح خريطة الحركة ومقارنة البصمتين (1 و 2)" : "عرض خريطة البصمة الميدانية الحالية") 
+                                          : (isDouble ? "Open dual stamps comparative-path view" : "View active standalone stamp coordinate")}
                                       </span>
                                       <span className="text-[10px] font-mono opacity-80 font-bold bg-primary/20 px-1.5 py-0.5 rounded-lg">
                                         ({log.latitude?.toFixed(5)}, {log.longitude?.toFixed(5)})
                                       </span>
-                                    </a>
+                                    </button>
                                   </div>
                                 ) : log.geofenceName ? (
                                   <div className="text-emerald-500 text-xs font-bold mt-2 bg-emerald-500/10 border border-emerald-500/25 px-3 py-1.5 rounded-xl inline-flex items-center gap-2 select-none">
@@ -837,16 +842,16 @@ export default function AdminDashboard() {
           {/* Add Employee Modal */}
           {showModal && (
             <div id="add-employee-modal" className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
-              <div className="card w-full max-w-md p-8 bg-surface-container shadow-2xl">
-                <div className="flex justify-between items-center mb-6">
+              <div className="card w-full max-w-md p-6 bg-surface-container shadow-2xl max-h-[90vh] flex flex-col justify-between overflow-hidden">
+                <div className="flex justify-between items-center mb-4 shrink-0">
                   <h3 className="text-xl font-bold text-on-surface">
                     {editingId ? t.editEmployee : t.newEmployee}
                   </h3>
-                  <button onClick={() => { setShowModal(false); setEditingId(null); }} className="text-on-surface-variant hover:text-on-surface">
+                  <button onClick={() => { setShowModal(false); setEditingId(null); }} className="text-on-surface-variant hover:text-on-surface p-1 hover:bg-white/5 rounded-lg transition-colors cursor-pointer">
                     <X className="w-6 h-6" />
                   </button>
                 </div>
-                <form onSubmit={handleAddEmployee} className="space-y-4">
+                <form onSubmit={handleAddEmployee} className="space-y-4 overflow-y-auto flex-1 pr-1.5 custom-scrollbar pb-2">
                   <div className="flex flex-col items-center mb-6">
                     <label className="input-label mb-2 text-center w-full">{lang === "ar" ? "صورة الموظف" : "Employee Photo"}</label>
                     <label className="relative w-32 h-32 rounded-3xl border-2 border-dashed border-outline-variant hover:border-primary flex items-center justify-center cursor-pointer hover:bg-primary/5 transition-all group overflow-hidden shadow-inner">
