@@ -12,22 +12,15 @@ export default function MobileCheckIn() {
   const getDeviceImei = () => {
     let imei = localStorage.getItem("device_imei_number");
     if (!imei) {
-      const oldMac = localStorage.getItem("device_mac_address");
-      if (oldMac) {
-        const numericPart = oldMac.replace(/[^0-9]/g, "");
-        imei = "35" + numericPart.substring(0, 12).padEnd(12, "0") + "5";
-        localStorage.setItem("device_imei_number", imei);
-      } else {
-        const prefixes = ["35", "86", "49"];
-        const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
-        let body = "";
-        for (let i = 0; i < 12; i++) {
-          body += Math.floor(Math.random() * 10);
-        }
-        const lastDigit = Math.floor(Math.random() * 10);
-        imei = prefix + body + lastDigit;
-        localStorage.setItem("device_imei_number", imei);
+      const prefixes = ["35", "86", "49"];
+      const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
+      let body = "";
+      for (let i = 0; i < 12; i++) {
+        body += Math.floor(Math.random() * 10);
       }
+      const lastDigit = Math.floor(Math.random() * 10);
+      imei = prefix + body + lastDigit;
+      localStorage.setItem("device_imei_number", imei);
     }
     return imei;
   };
