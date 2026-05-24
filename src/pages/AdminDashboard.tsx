@@ -745,19 +745,7 @@ export default function AdminDashboard() {
                             </td>
                             <td className="px-6 py-4">
                               <div className="flex items-center justify-end gap-2">
-                                {employee.macAddress && (
-                                  <button 
-                                    type="button"
-                                    onClick={() => setMacDetailsEmployee(employee)}
-                                    className="relative p-2 text-emerald-400 hover:bg-emerald-500/10 transition-colors rounded-full flex items-center justify-center cursor-pointer group"
-                                    title={lang === "ar" ? "تفاصيل هاتف الموظف ورقمه (IMEI)" : "Employee Phone IMEI Details"}
-                                  >
-                                    <Smartphone className="w-5 h-5 pointer-events-none" />
-                                    <span className="absolute bottom-1 right-1 bg-emerald-500 text-[#121214] rounded-full w-3.5 h-3.5 flex items-center justify-center text-[8px] font-black border border-[#121214] pointer-events-none shadow">
-                                      ✓
-                                    </span>
-                                  </button>
-                                )}
+
                                 {(currentUser.role === 'ceo' || currentUser.role === 'dev' || (currentUser.role === 'admin' && (employee.role !== 'admin' || employee.id === currentUser.id))) && (
                                   <button 
                                     type="button"
@@ -1124,28 +1112,7 @@ export default function AdminDashboard() {
                     </select>
                   </div>
 
-                  {newEmployee.role === "user" && (
-                    <div className="p-3.5 rounded-2xl border border-outline-variant/30 bg-[#1A1A1A] space-y-2 animate-fade-in">
-                      <label className="flex items-start gap-3 cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          className="mt-1 w-4 h-4 rounded border-outline accent-primary cursor-pointer text-primary bg-[#1C1C1E]"
-                          checked={newEmployee.checkMacAddress}
-                          onChange={(e) => setNewEmployee(prev => ({ ...prev, checkMacAddress: e.target.checked }))}
-                        />
-                        <div className="flex flex-col">
-                          <span className="text-xs font-bold text-on-surface">
-                            {lang === "ar" ? "التحقق من هاتف الموظف بواسطة IMEI الخاص بالجهاز" : "Verify employee phone by Device IMEI"}
-                          </span>
-                        </div>
-                      </label>
-                      <p className="text-[10px] leading-normal text-on-surface-variant/75 text-left rtl:text-right">
-                        {lang === "ar" 
-                          ? "ملاحظة: عند تفعيل هذا الخيار، فإن أول مرة يسجل فيها الموظف الدخول لحسابه المعطى له بواسطة المدير، يحفظ النظام معرف الـ IMEI الخاص بالهاتف ليسجل بعد ذلك باسم الحساب ولا يمكنه أن يبصم إلا به. يسري هذا الإجراء على المستخدمين العاديين فقط ولا ينطبق على المسؤولين أو مالكي الشركة." 
-                          : "Note: When enabled, the first time the employee logs in with their assigned account, the system saves the phone's IMEI identifier to link it with the account. Subsequent attendance logins/punches will only be allowed from this device. Sparing admins and company owners."}
-                      </p>
-                    </div>
-                  )}
+
 
                   <div>
                     <label className="input-label">{t.displayName}</label>
@@ -1471,62 +1438,7 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* MAC Device Verification Details & Reset Modal */}
-      {macDetailsEmployee && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
-          <div className="bg-[#1e1e1e] border border-outline-variant rounded-3xl p-6 max-w-sm w-full text-center relative overflow-hidden shadow-2xl">
-            <button 
-              onClick={() => setMacDetailsEmployee(null)} 
-              className="absolute top-4 right-4 text-on-surface-variant hover:text-on-surface p-1 hover:bg-white/5 rounded-lg transition-colors cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
 
-            <div className="w-14 h-14 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto mb-4 border border-emerald-500/30">
-              <Smartphone className="w-7 h-7 text-emerald-400" />
-            </div>
-
-            <h3 className="text-lg font-extrabold text-on-surface mb-2">
-              {lang === "ar" ? "رقم الـ IMEI المسجل للموظف" : "Employee Registered Device IMEI"}
-            </h3>
-
-            <p className="text-xs text-on-surface-variant/90 leading-relaxed mb-4">
-              {lang === "ar" 
-                ? `هوية الهاتف الخاصة بالموظف: ${macDetailsEmployee.name || macDetailsEmployee.username}`
-                : `Device identifier for: ${macDetailsEmployee.name || macDetailsEmployee.username}`}
-            </p>
-
-            <div className="bg-white/5 border border-white/10 rounded-2xl px-4 py-3 font-mono text-xs text-emerald-400 select-all tracking-wider mb-6 flex items-center justify-center gap-2">
-              <span>{macDetailsEmployee.macAddress}</span>
-            </div>
-
-            <p className="text-[11px] text-on-surface-variant/70 leading-relaxed mb-6 text-center">
-              {lang === "ar"
-                ? "إذا قام الموظف بتغيير هاتفه، أو تلف جهازه القديم، يمكنك مسح الـ IMEI المسجل الحالي لطلب التحقق من هاتفه الجديد مجدداً عند أول بصمة."
-                : "If the employee changed or lost their phone, you can reset this IMEI registration to let them register their new phone on their first next check-in."}
-            </p>
-
-            <div className="flex flex-col gap-2">
-              <button
-                type="button"
-                onClick={() => resetEmployeeMac(macDetailsEmployee.id)}
-                disabled={loading}
-                className="w-full btn-primary bg-red-600 hover:bg-red-700 hover:shadow-red-600/10 border-none text-white font-extrabold flex items-center justify-center gap-2 h-11 rounded-xl shadow-lg active:scale-95 transition-all duration-200 text-xs cursor-pointer"
-              >
-                {loading ? <Loader2 className="w-4 h-4 animate-spin text-white" /> : (lang === "ar" ? "إعادة ضبط الـ IMEI (ريست)" : "Reset Registered IMEI (Reset)")}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setMacDetailsEmployee(null)}
-                className="w-full py-2.5 rounded-xl hover:bg-neutral-800 text-xs font-bold text-on-surface-variant border border-outline-variant/30 flex items-center justify-center transition-all cursor-pointer"
-              >
-                {lang === "ar" ? "إغلاق" : "Close"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

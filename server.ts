@@ -387,19 +387,7 @@ async function startServer() {
 
       if (result.recordset.length > 0) {
         let user = result.recordset[0];
-        const clientMac = req.body.deviceMac;
-        if (user.role === 'user' && user.checkMacAddress && !user.macAddress && clientMac) {
-          try {
-            await db.request()
-              .input("id", sql.NVarChar, user.id)
-              .input("mac", sql.NVarChar, clientMac)
-              .query("UPDATE Employees SET macAddress = @mac WHERE id = @id");
-            user.macAddress = clientMac;
-            console.log(`Registered MAC address ${clientMac} for user ${user.username}`);
-          } catch (macUpdErr) {
-            console.error("Failed to save MAC address during login:", macUpdErr);
-          }
-        }
+        // Device verification has been completely disabled as requested by the user.
         
         // Empty existing notifications list upon successful login as requested by the user
         try {
@@ -497,7 +485,8 @@ async function startServer() {
     const db = await getPool();
     if (!db) return res.status(503).json({ error: "Database not connected" });
     
-    const { name, email, department, status, avatar, username, password, role, requesterRole, assignedGeofenceId, checkMacAddress } = req.body;
+    const { name, email, department, status, avatar, username, password, role, requesterRole, assignedGeofenceId } = req.body;
+    const checkMacAddress = false;
     const companyId = req.headers["x-company-id"] || req.query.companyId || req.body.companyId || "comp-default";
 
     let finalAssignedGeofenceId = assignedGeofenceId;
@@ -1026,7 +1015,7 @@ async function startServer() {
     try {
       const empResult = await db.request()
         .input("employeeId", sql.NVarChar, req.params.employeeId)
-        .query("SELECT assignedGeofenceId, role, checkMacAddress, macAddress FROM Employees WHERE id = @employeeId");
+        .query("SELECT assignedGeofenceId, role, 0 AS checkMacAddress, macAddress FROM Employees WHERE id = @employeeId");
 
       let assignedGeofenceId = "";
       let macMismatch = false;
@@ -1034,16 +1023,7 @@ async function startServer() {
       if (empResult.recordset.length > 0) {
         const emp = empResult.recordset[0];
         assignedGeofenceId = emp.assignedGeofenceId || "";
-        const role = emp.role;
-        const checkMacAddress = emp.checkMacAddress;
-        const savedMac = emp.macAddress;
-        const clientMac = req.query.deviceMac;
-
-        if (role === 'user' && checkMacAddress && savedMac && clientMac) {
-          if (savedMac.toLowerCase().trim() !== String(clientMac).toLowerCase().trim()) {
-            macMismatch = true;
-          }
-        }
+        // Device validation has been completely disabled as requested by the user.
       }
 
       const result = await db.request()
@@ -1403,7 +1383,8 @@ async function startServer() {
 
   app.put("/api/employees/:id", async (req, res) => {
     const db = await getPool();
-    const { name, email, department, role, username, password, avatar, requesterRole, assignedGeofenceId, checkMacAddress } = req.body;
+    const { name, email, department, role, username, password, avatar, requesterRole, assignedGeofenceId } = req.body;
+    const checkMacAddress = false;
     
     if (!db) {
        console.log("Mock update for employee:", req.params.id);

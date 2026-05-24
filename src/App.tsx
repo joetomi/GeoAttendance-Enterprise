@@ -5,6 +5,7 @@
 
 import React, { useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { AnimatePresence } from "motion/react";
 import Login from "./pages/Login";
 import AdminDashboard from "./pages/AdminDashboard";
 import GeofenceSettings from "./pages/GeofenceSettings";
@@ -21,6 +22,7 @@ import { NotificationProvider } from "./contexts/NotificationContext";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { cn } from "./lib/utils";
+import { SplashLoader } from "./components/SplashLoader";
 
 function AppLayout({ children, title }: { children: React.ReactNode; title: string }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -44,8 +46,15 @@ function AppLayout({ children, title }: { children: React.ReactNode; title: stri
 }
 
 export default function App() {
+  const [isLaunching, setIsLaunching] = useState(true);
+
   return (
     <LanguageProvider>
+      <AnimatePresence mode="wait">
+        {isLaunching && (
+          <SplashLoader onComplete={() => setIsLaunching(false)} />
+        )}
+      </AnimatePresence>
       <AuthProvider>
         <NotificationProvider>
           <BrowserRouter>
