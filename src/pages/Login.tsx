@@ -20,6 +20,16 @@ export default function Login() {
   const [showLangMenu, setShowLangMenu] = useState(false);
   const navigate = useNavigate();
 
+  const getDeviceMac = () => {
+    let mac = localStorage.getItem("device_mac_address");
+    if (!mac) {
+      const genHex = () => Math.floor(Math.random() * 256).toString(16).padStart(2, '0').toUpperCase();
+      mac = `${genHex()}:${genHex()}:${genHex()}:${genHex()}:${genHex()}:${genHex()}`;
+      localStorage.setItem("device_mac_address", mac);
+    }
+    return mac;
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -29,7 +39,7 @@ export default function Login() {
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify({ username, password, deviceMac: getDeviceMac() })
       });
       
       const data = await response.json();

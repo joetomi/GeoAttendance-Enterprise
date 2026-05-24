@@ -8,11 +8,22 @@ import { useLanguage } from "../contexts/LanguageContext";
 
 export default function MobileCheckIn() {
   const [status, setStatus] = useState<'idle' | 'checking' | 'success' | 'error'>('idle');
+  
+  const getDeviceMac = () => {
+    let mac = localStorage.getItem("device_mac_address");
+    if (!mac) {
+      const genHex = () => Math.floor(Math.random() * 256).toString(16).padStart(2, '0').toUpperCase();
+      mac = `${genHex()}:${genHex()}:${genHex()}:${genHex()}:${genHex()}:${genHex()}`;
+      localStorage.setItem("device_mac_address", mac);
+    }
+    return mac;
+  };
   const [currentMode, setCurrentMode] = useState<'In' | 'Out'>('Out');
   const [locationError, setLocationError] = useState<string | null>(null);
   const [inZone, setInZone] = useState<boolean | null>(null);
   const [user, setUser] = useState<any>(null);
   const [geofence, setGeofence] = useState<any>(null);
+  const [macMismatch, setMacMismatch] = useState<boolean>(false);
   const navigate = useNavigate();
 
   const { lang, t, setLanguage } = useLanguage();
@@ -32,7 +43,7 @@ export default function MobileCheckIn() {
   };
 
   const fetchStatus = (userId: string, companyId?: string) => {
-    fetch(`/api/attendance/status/${userId}`, {
+    fetch(`/api/attendance/status/${userId}?deviceMac=${getDeviceMac()}`, {
       headers: { "X-Company-Id": companyId || "" }
     })
       .then(res => res.json())
@@ -40,6 +51,11 @@ export default function MobileCheckIn() {
         if (data.status) {
           setCurrentMode(data.status);
           setInZone(data.status === 'In');
+        }
+        if (data.macMismatch) {
+          setMacMismatch(true);
+        } else {
+          setMacMismatch(false);
         }
         if (data.assignedGeofenceId === "verify_location" || data.assignedGeofenceId === "verify_location_double") {
           setIsVerifyLocationMode(true);
@@ -185,7 +201,8 @@ export default function MobileCheckIn() {
             lng: longitude,
             isDoubleVerification: true,
             loc1: firstLocation,
-            loc2: secondPoint
+            loc2: secondPoint,
+            deviceMac: getDeviceMac()
           })
         })
         .then(async (res) => {
@@ -260,7 +277,8 @@ export default function MobileCheckIn() {
           body: JSON.stringify({
             employeeId: user.id,
             lat: latitude,
-            lng: longitude
+            lng: longitude,
+            deviceMac: getDeviceMac()
           })
         })
         .then(async (res) => {
@@ -330,7 +348,29 @@ export default function MobileCheckIn() {
 
       <div className="flex-1 flex flex-col items-center justify-center w-full py-12">
         <AnimatePresence mode="wait">
-          {status === 'idle' && (
+          {macMismatch ? (
+            <motion.div
+              key="mac-mismatch"
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="bg-red-500/10 border border-red-500/20 rounded-[32px] p-8 text-center max-w-sm flex flex-col items-center shadow-lg"
+            >
+              <div className="w-20 h-20 bg-red-500/15 text-red-500 rounded-full flex items-center justify-center mb-6 animate-pulse">
+                <XCircle className="w-10 h-10" />
+              </div>
+              <h3 className="text-xl font-bold text-white mb-3">
+                {lang === "ar" ? "الجهاز غير مسجل باسمك" : "Device Not Registered"}
+              </h3>
+              <p className="text-sm text-red-200/80 leading-relaxed mb-6">
+                {lang === "ar" 
+                  ? "عذراً، هذا الجهاز غير مسجل باسم حسابك ويرجى التواصل مع الإدارة. لا يمكنك تسجيل البصمة هاهنا."
+                  : "Sorry, this device is not registered in your name. Please contact administration. Attendance punching is disallowed."}
+              </p>
+              <div className="bg-white/5 border border-white/10 rounded-xl px-4 py-2 font-mono text-[10px] text-white/50 select-text">
+                ID: {getDeviceMac()}
+              </div>
+            </motion.div>
+          ) : status === 'idle' && (
             <motion.button
               key="idle"
               initial={{ scale: 0.9, opacity: 0 }}

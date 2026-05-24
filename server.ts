@@ -76,6 +76,12 @@ async function getPool() {
         IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Employees') AND name = 'assignedGeofenceId')
           EXEC('ALTER TABLE Employees ADD assignedGeofenceId NVARCHAR(100)');
 
+        IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Employees') AND name = 'checkMacAddress')
+          EXEC('ALTER TABLE Employees ADD checkMacAddress BIT DEFAULT 0');
+
+        IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Employees') AND name = 'macAddress')
+          EXEC('ALTER TABLE Employees ADD macAddress NVARCHAR(255)');
+
         -- Ensure assignedGeofenceId is NVARCHAR(1000) for supporting multiple geofence selection
         BEGIN TRY
           EXEC('ALTER TABLE Employees ALTER COLUMN assignedGeofenceId NVARCHAR(1000)');
@@ -372,6 +378,7 @@ async function startServer() {
         .input("password", sql.NVarChar, password)
         .query(`
           SELECT e.id, e.name, e.role, e.username, e.department, e.avatar, e.companyId, 
+                 e.checkMacAddress, e.macAddress,
                  c.name as companyName, c.planName, c.maxEmployees, c.features
           FROM Employees e
           LEFT JOIN Companies c ON e.companyId = c.id
@@ -379,7 +386,20 @@ async function startServer() {
         `);
 
       if (result.recordset.length > 0) {
-        const user = result.recordset[0];
+        let user = result.recordset[0];
+        const clientMac = req.body.deviceMac;
+        if (user.role === 'user' && user.checkMacAddress && !user.macAddress && clientMac) {
+          try {
+            await db.request()
+              .input("id", sql.NVarChar, user.id)
+              .input("mac", sql.NVarChar, clientMac)
+              .query("UPDATE Employees SET macAddress = @mac WHERE id = @id");
+            user.macAddress = clientMac;
+            console.log(`Registered MAC address ${clientMac} for user ${user.username}`);
+          } catch (macUpdErr) {
+            console.error("Failed to save MAC address during login:", macUpdErr);
+          }
+        }
         
         // Empty existing notifications list upon successful login as requested by the user
         try {
@@ -477,7 +497,7 @@ async function startServer() {
     const db = await getPool();
     if (!db) return res.status(503).json({ error: "Database not connected" });
     
-    const { name, email, department, status, avatar, username, password, role, requesterRole, assignedGeofenceId } = req.body;
+    const { name, email, department, status, avatar, username, password, role, requesterRole, assignedGeofenceId, checkMacAddress } = req.body;
     const companyId = req.headers["x-company-id"] || req.query.companyId || req.body.companyId || "comp-default";
 
     let finalAssignedGeofenceId = assignedGeofenceId;
@@ -566,9 +586,10 @@ async function startServer() {
       .input("avatar", sql.NVarChar(sql.MAX), avatar)
       .input("companyId", sql.NVarChar, companyId)
       .input("assignedGeofenceId", sql.NVarChar, finalAssignedGeofenceId || null)
-      .query("INSERT INTO Employees (id, name, username, password, role, email, department, status, avatar, companyId, assignedGeofenceId) VALUES (@id, @name, @username, @password, @role, @email, @department, @status, @avatar, @companyId, @assignedGeofenceId)");
+      .input("chkMac", sql.Bit, checkMacAddress ? 1 : 0)
+      .query("INSERT INTO Employees (id, name, username, password, role, email, department, status, avatar, companyId, assignedGeofenceId, checkMacAddress) VALUES (@id, @name, @username, @password, @role, @email, @department, @status, @avatar, @companyId, @assignedGeofenceId, @chkMac)");
     
-    res.status(201).json({ id, name, username, role, email, department, status, avatar, companyId, assignedGeofenceId: finalAssignedGeofenceId });
+    res.status(201).json({ id, name, username, role, email, department, status, avatar, companyId, assignedGeofenceId: finalAssignedGeofenceId, checkMacAddress: !!checkMacAddress });
   });
 
   app.delete("/api/employees/:id", async (req, res) => {
@@ -981,27 +1002,43 @@ async function startServer() {
 
   app.get("/api/attendance/status/:employeeId", async (req, res) => {
     const db = await getPool();
-    if (!db) return res.json({ status: "Out", note: "Demo Mode", assignedGeofenceId: "" });
+    if (!db) return res.json({ status: "Out", note: "Demo Mode", assignedGeofenceId: "", macMismatch: false });
     
     try {
       const empResult = await db.request()
         .input("employeeId", sql.NVarChar, req.params.employeeId)
-        .query("SELECT assignedGeofenceId FROM Employees WHERE id = @employeeId");
+        .query("SELECT assignedGeofenceId, role, checkMacAddress, macAddress FROM Employees WHERE id = @employeeId");
 
-      const assignedGeofenceId = empResult.recordset.length > 0 ? empResult.recordset[0].assignedGeofenceId : "";
+      let assignedGeofenceId = "";
+      let macMismatch = false;
+
+      if (empResult.recordset.length > 0) {
+        const emp = empResult.recordset[0];
+        assignedGeofenceId = emp.assignedGeofenceId || "";
+        const role = emp.role;
+        const checkMacAddress = emp.checkMacAddress;
+        const savedMac = emp.macAddress;
+        const clientMac = req.query.deviceMac;
+
+        if (role === 'user' && checkMacAddress && savedMac && clientMac) {
+          if (savedMac.toLowerCase().trim() !== String(clientMac).toLowerCase().trim()) {
+            macMismatch = true;
+          }
+        }
+      }
 
       const result = await db.request()
         .input("employeeId", sql.NVarChar, req.params.employeeId)
         .query("SELECT TOP 1 status FROM AttendanceLogs WHERE employeeId = @employeeId ORDER BY timestamp DESC");
       
       if (result.recordset.length > 0) {
-        res.json({ status: result.recordset[0].status, assignedGeofenceId });
+        res.json({ status: result.recordset[0].status, assignedGeofenceId, macMismatch });
       } else {
-        res.json({ status: "Out", assignedGeofenceId });
+        res.json({ status: "Out", assignedGeofenceId, macMismatch });
       }
     } catch (err) {
       console.error("Status fetch failed:", err);
-      res.json({ status: "Out", error: "DB Error", assignedGeofenceId: "" });
+      res.json({ status: "Out", error: "DB Error", assignedGeofenceId: "", macMismatch: false });
     }
   });
 
@@ -1015,12 +1052,36 @@ async function startServer() {
     
     if (db) {
        try {
-         const empRes = await db.request().input("empId", sql.NVarChar, employeeId).query("SELECT companyId, assignedGeofenceId FROM Employees WHERE id = @empId");
+         const empRes = await db.request().input("empId", sql.NVarChar, employeeId).query("SELECT companyId, assignedGeofenceId, role, checkMacAddress, macAddress FROM Employees WHERE id = @empId");
          if (empRes.recordset.length > 0) {
-           if (empRes.recordset[0].companyId) companyId = empRes.recordset[0].companyId;
-           if (empRes.recordset[0].assignedGeofenceId) assignedGeofenceId = empRes.recordset[0].assignedGeofenceId;
+           const empData = empRes.recordset[0];
+           if (empData.companyId) companyId = empData.companyId;
+           if (empData.assignedGeofenceId) assignedGeofenceId = empData.assignedGeofenceId;
+
+           if (empData.role === 'user' && empData.checkMacAddress) {
+             const clientMac = req.body.deviceMac;
+             if (empData.macAddress) {
+               if (!clientMac || clientMac.toLowerCase().trim() !== empData.macAddress.toLowerCase().trim()) {
+                 return res.status(400).json({
+                   success: false,
+                   error: "التحقق من الهاتف فشل: الماك ادرس للهاتف غير مطابق للمسجل لهذا الحساب. يرجى مراجعة إدارة الشركة.",
+                   errorEn: "Device verification failed: The device's identifier does not match the registered device for this account. Please contact administration."
+                 });
+               }
+             } else if (clientMac) {
+               try {
+                 await db.request()
+                   .input("id", sql.NVarChar, employeeId)
+                   .input("mac", sql.NVarChar, clientMac)
+                   .query("UPDATE Employees SET macAddress = @mac WHERE id = @id");
+                 console.log(`Auto-registered MAC address ${clientMac} for user during first check-in`);
+               } catch (macUpdErr) {
+                 console.error("Failed to auto-save MAC address during attendance check-in:", macUpdErr);
+               }
+             }
+           }
          }
-       } catch (err) {
+       } catch (err: any) {
          console.error("Failed to find employee company during check-in:", err);
        }
     }
@@ -1194,12 +1255,36 @@ async function startServer() {
 
     try {
       try {
-        const empRes = await db.request().input("empId", sql.NVarChar, employeeId).query("SELECT companyId, assignedGeofenceId FROM Employees WHERE id = @empId");
+        const empRes = await db.request().input("empId", sql.NVarChar, employeeId).query("SELECT companyId, assignedGeofenceId, role, checkMacAddress, macAddress FROM Employees WHERE id = @empId");
         if (empRes.recordset.length > 0) {
-          if (empRes.recordset[0].companyId) companyId = empRes.recordset[0].companyId;
-          if (empRes.recordset[0].assignedGeofenceId) assignedGeofenceId = empRes.recordset[0].assignedGeofenceId;
+          const empData = empRes.recordset[0];
+          if (empData.companyId) companyId = empData.companyId;
+          if (empData.assignedGeofenceId) assignedGeofenceId = empData.assignedGeofenceId;
+
+          if (empData.role === 'user' && empData.checkMacAddress) {
+            const clientMac = req.body.deviceMac;
+            if (empData.macAddress) {
+              if (!clientMac || clientMac.toLowerCase().trim() !== empData.macAddress.toLowerCase().trim()) {
+                return res.status(400).json({
+                  success: false,
+                  error: "التحقق من الهاتف فشل: الماك ادرس للهاتف غير مطابق للمسجل لهذا الحساب. يرجى مراجعة إدارة الشركة.",
+                  errorEn: "Device verification failed: The device's identifier does not match the registered device for this account. Please contact administration."
+                });
+              }
+            } else if (clientMac) {
+              try {
+                await db.request()
+                  .input("id", sql.NVarChar, employeeId)
+                  .input("mac", sql.NVarChar, clientMac)
+                  .query("UPDATE Employees SET macAddress = @mac WHERE id = @id");
+                console.log(`Auto-registered MAC address ${clientMac} for user during first check-out`);
+              } catch (macUpdErr) {
+                console.error("Failed to auto-save MAC address during attendance check-out:", macUpdErr);
+              }
+            }
+          }
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error("Failed to find employee company during check-out:", err);
       }
 
@@ -1299,11 +1384,11 @@ async function startServer() {
 
   app.put("/api/employees/:id", async (req, res) => {
     const db = await getPool();
-    const { name, email, department, role, username, password, avatar, requesterRole, assignedGeofenceId } = req.body;
+    const { name, email, department, role, username, password, avatar, requesterRole, assignedGeofenceId, checkMacAddress } = req.body;
     
     if (!db) {
        console.log("Mock update for employee:", req.params.id);
-       return res.json({ id: req.params.id, name, username, role, email, department, status: 'Active', avatar, assignedGeofenceId });
+       return res.json({ id: req.params.id, name, username, role, email, department, status: 'Active', avatar, assignedGeofenceId, checkMacAddress: !!checkMacAddress });
     }
     
     try {
@@ -1368,19 +1453,20 @@ async function startServer() {
         .input("role", sql.NVarChar, role)
         .input("user", sql.NVarChar, username)
         .input("avatar", sql.NVarChar(sql.MAX), avatar)
+        .input("chkMac", sql.Bit, checkMacAddress ? 1 : 0)
         .input("assignedGeofenceId", sql.NVarChar, finalAssignedGeofenceId || null);
 
       if (hasPass) {
         await request.input("pass", sql.NVarChar, password).query(`
-          UPDATE Employees SET name=@name, email=@email, department=@dept, role=@role, username=@user, password=@pass, avatar=@avatar, assignedGeofenceId=@assignedGeofenceId WHERE id=@id
+          UPDATE Employees SET name=@name, email=@email, department=@dept, role=@role, username=@user, password=@pass, avatar=@avatar, assignedGeofenceId=@assignedGeofenceId, checkMacAddress=@chkMac, macAddress = CASE WHEN @chkMac = 1 THEN macAddress ELSE NULL END WHERE id=@id
         `);
       } else {
         await request.query(`
-          UPDATE Employees SET name=@name, email=@email, department=@dept, role=@role, username=@user, avatar=@avatar, assignedGeofenceId=@assignedGeofenceId WHERE id=@id
+          UPDATE Employees SET name=@name, email=@email, department=@dept, role=@role, username=@user, avatar=@avatar, assignedGeofenceId=@assignedGeofenceId, checkMacAddress=@chkMac, macAddress = CASE WHEN @chkMac = 1 THEN macAddress ELSE NULL END WHERE id=@id
         `);
       }
       
-      res.json({ id: req.params.id, name, username, role, email: email || `${username}@enterprise.com`, department, status: 'Active', avatar, assignedGeofenceId: finalAssignedGeofenceId });
+      res.json({ id: req.params.id, name, username, role, email: email || `${username}@enterprise.com`, department, status: 'Active', avatar, assignedGeofenceId: finalAssignedGeofenceId, checkMacAddress: !!checkMacAddress });
     } catch (err) {
       console.error("Employee update failed:", err);
       res.status(500).json({ error: "Database update error" });

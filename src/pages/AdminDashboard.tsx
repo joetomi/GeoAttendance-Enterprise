@@ -42,7 +42,8 @@ export default function AdminDashboard() {
     name: "",
     department: "Operations",
     avatar: "",
-    assignedGeofenceId: ""
+    assignedGeofenceId: "",
+    checkMacAddress: false
   });
 
   const [usernameChecking, setUsernameChecking] = useState(false);
@@ -248,7 +249,7 @@ export default function AdminDashboard() {
         }
         setShowModal(false);
         setEditingId(null);
-        setNewEmployee({ username: "", password: "", role: "user", name: "", department: "Operations", avatar: "", assignedGeofenceId: "" });
+        setNewEmployee({ username: "", password: "", role: "user", name: "", department: "Operations", avatar: "", assignedGeofenceId: "", checkMacAddress: false });
       })
       .catch(err => {
         console.error("Operation failed:", err);
@@ -279,7 +280,8 @@ export default function AdminDashboard() {
       name: employee.name,
       department: employee.department || "Operations",
       avatar: employee.avatar || "",
-      assignedGeofenceId: employee.assignedGeofenceId ? String(employee.assignedGeofenceId) : ""
+      assignedGeofenceId: employee.assignedGeofenceId ? String(employee.assignedGeofenceId) : "",
+      checkMacAddress: !!employee.checkMacAddress
     });
     setShowModal(true);
   };
@@ -651,7 +653,7 @@ export default function AdminDashboard() {
                       {lang === "ar" ? "ترقية الباقة 👑" : "Upgrade Plan 👑"}
                     </button>
                   ) : (
-                    <button id="add-employee-btn" onClick={() => { setEditingId(null); setNewEmployee({ username: "", password: "", role: "user", name: "", department: "Operations", avatar: "", assignedGeofenceId: "" }); setShowModal(true); }} className="btn-primary">
+                    <button id="add-employee-btn" onClick={() => { setEditingId(null); setNewEmployee({ username: "", password: "", role: "user", name: "", department: "Operations", avatar: "", assignedGeofenceId: "", checkMacAddress: false }); setShowModal(true); }} className="btn-primary">
                       <Plus className="w-5 h-5" />
                       {lang === "ar" ? "إضافة موظف" : "Add Employee"}
                     </button>
@@ -976,7 +978,7 @@ export default function AdminDashboard() {
                   <h3 className="text-xl font-bold text-on-surface">
                     {editingId ? t.editEmployee : t.newEmployee}
                   </h3>
-                  <button onClick={() => { setShowModal(false); setEditingId(null); }} className="text-on-surface-variant hover:text-on-surface p-1 hover:bg-white/5 rounded-lg transition-colors cursor-pointer">
+                  <button onClick={() => { setShowModal(false); setEditingId(null); setNewEmployee({ username: "", password: "", role: "user", name: "", department: "Operations", avatar: "", assignedGeofenceId: "", checkMacAddress: false }); }} className="text-on-surface-variant hover:text-on-surface p-1 hover:bg-white/5 rounded-lg transition-colors cursor-pointer">
                     <X className="w-6 h-6" />
                   </button>
                 </div>
@@ -1086,6 +1088,30 @@ export default function AdminDashboard() {
                       )}
                     </select>
                   </div>
+
+                  {newEmployee.role === "user" && (
+                    <div className="p-3.5 rounded-2xl border border-outline-variant/30 bg-[#1A1A1A] space-y-2 animate-fade-in">
+                      <label className="flex items-start gap-3 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          className="mt-1 w-4 h-4 rounded border-outline accent-primary cursor-pointer text-primary bg-[#1C1C1E]"
+                          checked={newEmployee.checkMacAddress}
+                          onChange={(e) => setNewEmployee(prev => ({ ...prev, checkMacAddress: e.target.checked }))}
+                        />
+                        <div className="flex flex-col">
+                          <span className="text-xs font-bold text-on-surface">
+                            {lang === "ar" ? "التحقق من هاتف الموظف بواسطة MAC Address" : "Verify employee phone by MAC address"}
+                          </span>
+                        </div>
+                      </label>
+                      <p className="text-[10px] leading-normal text-on-surface-variant/75 text-left rtl:text-right">
+                        {lang === "ar" 
+                          ? "ملاحظة: عند تفعيل هذا الخيار، فإن أول مرة يسجل فيها الموظف الدخول لحسابه المعطى له بواسطة المدير، يحفظ النظام الماك ادرس (الرقم التعريفي) الخاص بالهاتف ليسجل بعد ذلك باسم الحساب ولا يمكنه أن يبصم إلا به. يسري هذا الإجراء على المستخدمين العاديين فقط ولا ينطبق على المسؤولين أو مالكي الشركة." 
+                          : "Note: When enabled, the first time the employee logs in with their assigned account, the system saves the phone's MAC address (device identifier) to link it with the account. Subsequent attendance logins/punches will only be allowed from this device. Sparing admins and company owners."}
+                      </p>
+                    </div>
+                  )}
+
                   <div>
                     <label className="input-label">{t.displayName}</label>
                     <input 

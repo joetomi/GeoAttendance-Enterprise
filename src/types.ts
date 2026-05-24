@@ -14,6 +14,8 @@ export interface Employee {
   avatar?: string;
   companyId?: string;
   assignedGeofenceId?: string | number;
+  checkMacAddress?: boolean;
+  macAddress?: string;
 }
 
 export interface Geofence {
