@@ -238,10 +238,10 @@ export default function DepartmentManagement() {
           </div>
         ) : !selectedDept ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {departments.map((dept) => (
+            {departments.map((dept, idx) => (
               <motion.div
                 layoutId={dept.id}
-                key={dept.id}
+                key={`${dept.id || 'dept'}-${idx}`}
                 className="group relative bg-surface-container border border-outline-variant rounded-[32px] p-6 hover:border-primary/50 transition-all cursor-pointer overflow-hidden"
                 onClick={() => setSelectedDept(dept)}
               >
@@ -292,11 +292,11 @@ export default function DepartmentManagement() {
                </div>
             ) : deptEmployees.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {deptEmployees.map((emp) => (
+                {deptEmployees.map((emp, idx) => (
                   <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    key={emp.id}
+                    key={`${emp.id || 'emp'}-${idx}`}
                     className="flex items-center gap-4 p-5 bg-surface-container border border-outline-variant rounded-3xl"
                   >
                     <img 
@@ -564,14 +564,14 @@ export default function DepartmentManagement() {
                           </p>
                         ) : (
                           <div className="grid grid-cols-1 gap-2 max-h-[140px] overflow-y-auto p-2 bg-[#1A1A1A] border border-outline-variant rounded-2xl">
-                            {geofences.map((gf) => {
+                            {geofences.map((gf, idx) => {
                               const currentSelected = formData.assignedGeofenceId 
                                 ? String(formData.assignedGeofenceId).split(",").map(x => x.trim()).filter(Boolean) 
                                 : [];
                               const isChecked = currentSelected.includes(String(gf.id));
                               return (
                                 <label 
-                                  key={gf.id} 
+                                  key={`${gf.id || 'gf'}-${idx}`} 
                                   className={cn(
                                     "flex items-center gap-3 p-2.5 rounded-xl border transition-all cursor-pointer select-none text-xs font-semibold",
                                     isChecked 
@@ -663,8 +663,8 @@ export default function DepartmentManagement() {
                         : `There are ${editingDeptEmployees.length} employees in this department. Are you sure?`}
                     </p>
                     <div className="max-h-32 overflow-y-auto space-y-2 bg-surface-container-highest/30 p-3 rounded-2xl border border-outline-variant/30 text-start">
-                      {editingDeptEmployees.map(emp => (
-                        <div key={emp.id} className="flex items-center gap-2">
+                      {editingDeptEmployees.map((emp, idx) => (
+                        <div key={`${emp.id || 'emp'}-${idx}`} className="flex items-center gap-2">
                           <div className="w-1.5 h-1.5 rounded-full bg-error" />
                           <span className="text-xs text-on-surface-variant font-medium">{emp.name}</span>
                         </div>

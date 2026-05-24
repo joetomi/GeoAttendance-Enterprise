@@ -620,8 +620,8 @@ export default function PayrollDashboard() {
                   lang === "ar" ? "pl-8 pr-2" : "pr-8 pl-2"
                 )}
               >
-                {employees.map(emp => (
-                  <option key={emp.id} value={emp.id} className="bg-surface font-sans text-on-surface">
+                {employees.map((emp, idx) => (
+                  <option key={`${emp.id || 'emp'}-${idx}`} value={emp.id} className="bg-surface font-sans text-on-surface">
                     {emp.name} (@{emp.username})
                   </option>
                 ))}
@@ -759,9 +759,9 @@ export default function PayrollDashboard() {
                       <div className="space-y-4">
                         <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant opacity-70">{t.weekends}</label>
                         <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-3">
-                          {dayMapping.map((day) => (
+                          {dayMapping.map((day, idx) => (
                             <button
-                              key={day.id}
+                              key={`${day.id || 'day'}-${idx}`}
                               type="button"
                               onClick={() => toggleWeekend(day.id)}
                               className={cn(
@@ -968,8 +968,8 @@ export default function PayrollDashboard() {
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-outline-variant/20">
-                            {currentEmpLeaves.map(l => (
-                              <tr key={l.id} className="hover:bg-primary/5">
+                            {currentEmpLeaves.map((l, idx) => (
+                              <tr key={`${l.id || 'leave'}-${idx}`} className="hover:bg-primary/5">
                                 <td className="py-3 font-bold text-on-surface">
                                   <span className="block">{l.reason}</span>
                                   <span className="inline-block px-1.5 py-0.5 rounded text-[9px] bg-primary/10 text-primary mt-1">{l.type}</span>
@@ -1145,8 +1145,8 @@ export default function PayrollDashboard() {
                       </p>
                     ) : (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {currentEmpDocs.map(d => (
-                          <div key={d.id} className="p-4 bg-surface border border-outline-variant/30 rounded-2xl flex flex-col justify-between relative overflow-hidden feedback-warning-outline">
+                        {currentEmpDocs.map((d, idx) => (
+                          <div key={`${d.id || 'doc'}-${idx}`} className="p-4 bg-surface border border-outline-variant/30 rounded-2xl flex flex-col justify-between relative overflow-hidden feedback-warning-outline">
                             <div>
                               <div className="flex justify-between items-start gap-4 mb-2">
                                 <span className="font-bold text-sm text-on-surface truncate">{d.name}</span>
@@ -1250,8 +1250,8 @@ export default function PayrollDashboard() {
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-outline-variant/20">
-                            {currentEmpAssets.map(a => (
-                              <tr key={a.id} className="hover:bg-primary/5">
+                            {currentEmpAssets.map((a, idx) => (
+                              <tr key={`${a.id || 'asset'}-${idx}`} className="hover:bg-primary/5">
                                 <td className="py-3 font-bold text-on-surface">
                                   <span className="block">{a.name}</span>
                                   <span className="text-[10px] text-on-surface-variant font-mono opacity-60">S/N: {a.serialNumber}</span>
@@ -1375,8 +1375,8 @@ export default function PayrollDashboard() {
                       </div>
                     ) : (
                       <div className="space-y-4">
-                        {currentEmpWarnings.map(w => (
-                          <div key={w.id} className="p-5 bg-surface border border-outline-variant/30 rounded-2xl relative overflow-hidden flex flex-col justify-between">
+                        {currentEmpWarnings.map((w, idx) => (
+                          <div key={`${w.id || 'warning'}-${idx}`} className="p-5 bg-surface border border-outline-variant/30 rounded-2xl relative overflow-hidden flex flex-col justify-between">
                             <div className="absolute top-0 right-0 left-0 h-[3px] bg-gradient-to-r from-amber-500 to-red-500" />
                             
                             <div>

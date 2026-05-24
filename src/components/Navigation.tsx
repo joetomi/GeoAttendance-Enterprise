@@ -361,14 +361,9 @@ export function Sidebar({ className }: SidebarProps) {
             />
             <div className="overflow-hidden">
               <p className="text-sm font-medium text-white truncate">{user?.name || t.adminSupport}</p>
-              <a 
-                href="https://api.whatsapp.com/send/?phone=218913004788&text&type=phone_number&app_absent=0" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="text-[10px] uppercase text-white font-bold tracking-wider hover:underline block opacity-80 hover:opacity-100 transition-opacity"
-              >
-                {t.contactCorporate}
-              </a>
+              <p className="text-[10px] uppercase text-white font-bold tracking-wider opacity-60">
+                {user?.department || "Corporate"}
+              </p>
             </div>
           </div>
         </div>

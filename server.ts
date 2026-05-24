@@ -530,7 +530,10 @@ async function startServer() {
         .query("SELECT maxEmployees FROM Companies WHERE id = @companyId");
       
       if (companyRes.recordset.length > 0) {
-        const { maxEmployees } = companyRes.recordset[0];
+        let { maxEmployees } = companyRes.recordset[0];
+        if (!maxEmployees) {
+          maxEmployees = 15; // default fallback if missing
+        }
         
         // Count existing employees in the company (excluding 'dev' role which doesn't count towards client quota)
         const countRes = await db.request()
@@ -540,8 +543,8 @@ async function startServer() {
         const currentCount = countRes.recordset[0].count;
         if (currentCount >= maxEmployees) {
           return res.status(400).json({
-            error: `لقد تجاوزت هذه المنشأة الحد الأقصى للموظفين المسموح به في باقة الاشتراك (${maxEmployees} موظف). يرجى الترقية لإضافة موظف آخر.`,
-            errorEn: `This company has exceeded its subscription employee limit of ${maxEmployees}. Please upgrade subscription to add more employees.`
+            error: `نعتذر، لقد وصلت للحد الأقصى للموظفين في المؤسسة. لترقية الباقة، يرجى التواصل مع الدعم الفني.`,
+            errorEn: `We apologize, you have reached the maximum employee limit in the organization. To upgrade your plan, please contact technical support.`
           });
         }
       }
@@ -914,7 +917,7 @@ async function startServer() {
   app.get("/api/stats", async (req, res) => {
     const db = await getPool();
     const companyId = req.headers["x-company-id"] || req.query.companyId;
-    if (!db) return res.json({ totalEmployees: 0, activeToday: 0, onlineNow: 0, totalLogs: 0 });
+    if (!db) return res.json({ totalEmployees: 0, activeToday: 0, onlineNow: 0, totalLogs: 0, maxEmployees: 15 });
 
     try {
       let queryEmployeeCount = "SELECT COUNT(*) as value FROM Employees";
@@ -946,6 +949,16 @@ async function startServer() {
         reqTotal.input("companyId", sql.NVarChar, companyId);
       }
 
+      let maxEmployees = 15;
+      if (companyId) {
+        const compRes = await db.request()
+          .input("compKey", sql.NVarChar, companyId)
+          .query("SELECT maxEmployees FROM Companies WHERE id = @compKey");
+        if (compRes.recordset.length > 0) {
+          maxEmployees = compRes.recordset[0].maxEmployees || 15;
+        }
+      }
+
       const [resEmp, resAct, resOn, resTot] = await Promise.all([
         reqEmployee.query(queryEmployeeCount),
         reqActive.query(queryActiveToday),
@@ -957,7 +970,8 @@ async function startServer() {
         totalEmployees: resEmp.recordset[0]?.value || 0,
         activeToday: resAct.recordset[0]?.value || 0,
         onlineNow: resOn.recordset[0]?.value || 0,
-        totalLogs: resTot.recordset[0]?.value || 0
+        totalLogs: resTot.recordset[0]?.value || 0,
+        maxEmployees
       });
     } catch (err) {
       console.error("Stats query failed:", err);
@@ -1678,6 +1692,27 @@ async function startServer() {
     } catch (err) {
       console.error("Failed to delete company:", err);
       res.status(500).json({ error: "Failed to delete company" });
+    }
+  });
+
+  app.post("/api/companies/:id/upgrade", async (req, res) => {
+    const db = await getPool();
+    if (!db) return res.status(503).json({ error: "Database not connected" });
+    const { id } = req.params;
+    try {
+      await db.request()
+        .input("id", sql.NVarChar, id)
+        .query(`
+          UPDATE Companies SET
+            planName = N'Premium Plan / الباقة البريميوم',
+            maxEmployees = 500,
+            features = N'Geofences,Departments,Employees,HR_Management'
+          WHERE id = @id
+        `);
+      res.json({ success: true, maxEmployees: 500 });
+    } catch (err) {
+      console.error("Failed to upgrade company:", err);
+      res.status(500).json({ error: "Failed to upgrade company" });
     }
   });
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Plus, Trash2, MoreVertical, ShieldCheck, UserMinus, Users, ChevronLeft, ChevronRight, X, Edit3, Download, FileSpreadsheet, Eye, EyeOff, RefreshCcw, Loader2, Check } from "lucide-react";
+import { Plus, Trash2, MoreVertical, ShieldCheck, UserMinus, Users, ChevronLeft, ChevronRight, X, Edit3, Download, FileSpreadsheet, Eye, EyeOff, RefreshCcw, Loader2, Check, Crown } from "lucide-react";
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
 import { Employee } from "../types";
@@ -17,13 +17,16 @@ export default function AdminDashboard() {
   const [geofences, setGeofences] = useState<any[]>([]);
   const [attendance, setAttendance] = useState<any[]>([]);
   const [onlineUsers, setOnlineUsers] = useState<Employee[]>([]);
-  const [stats, setStats] = useState({ totalEmployees: 0, activeToday: 0, onlineNow: 0, totalLogs: 0 });
+  const [stats, setStats] = useState({ totalEmployees: 0, activeToday: 0, onlineNow: 0, totalLogs: 0, maxEmployees: Number(currentUser.maxEmployees) || 15 });
   const [loading, setLoading] = useState(true);
   
   const { lang, t } = useLanguage();
 
   const [initialLoading, setInitialLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [upgradeErrorMsg, setUpgradeErrorMsg] = useState("");
+  const [upgrading, setUpgrading] = useState(false);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedDoubleLocLog, setSelectedDoubleLocLog] = useState<any>(null);
@@ -239,6 +242,9 @@ export default function AdminDashboard() {
         } else {
           setEmployees(prev => [...prev, data]);
           alert(lang === "ar" ? "تم إضافة الموظف بنجاح!" : "Employee added successfully!");
+          setTimeout(() => {
+            window.location.reload();
+          }, 800);
         }
         setShowModal(false);
         setEditingId(null);
@@ -246,7 +252,18 @@ export default function AdminDashboard() {
       })
       .catch(err => {
         console.error("Operation failed:", err);
-        alert(`${lang === "ar" ? "خطأ:" : "Error:"} ${err.message}`);
+        const errMsg = err.message || "";
+        if (
+          errMsg.includes("الحد الأقصى للموظفين") || 
+          errMsg.includes("الحد الاقصى للموضفين") || 
+          errMsg.includes("maximum employee limit") ||
+          errMsg.includes("limit")
+        ) {
+          setUpgradeErrorMsg(errMsg);
+          setShowUpgradeModal(true);
+        } else {
+          alert(`${lang === "ar" ? "خطأ:" : "Error:"} ${errMsg}`);
+        }
       })
       .finally(() => {
         setLoading(false);
@@ -326,6 +343,8 @@ export default function AdminDashboard() {
   const exportToExcel = async () => {
     try {
       setLoading(true);
+      const isAr = lang === "ar";
+      
       const queryParams = new URLSearchParams({
         from: filterStartDate,
         to: filterEndDate,
@@ -339,10 +358,27 @@ export default function AdminDashboard() {
       const logs = await res.json();
       
       if (logs.length === 0) {
-        alert("No activity logs found for the selected filters.");
+        alert(isAr ? "لا توجد سجلات حضور بالمعايير المحددة للتصدير." : "No activity logs found for the selected filters.");
         return;
       }
       
+      // Helper to verify if it's a real geofence (not a field stamp indicator)
+      const isRealGeofenceName = (name: string | null | undefined): boolean => {
+        if (!name) return false;
+        const n = name.toLowerCase();
+        if (
+          n.startsWith("verify_double:") ||
+          n.includes("verify single") ||
+          n.includes("verify_location") ||
+          n.includes("بصمة واحدة") ||
+          n.includes("direct checkout") ||
+          n.includes("الخروج المباشر")
+        ) {
+          return false;
+        }
+        return true;
+      };
+
       // Group by employee and date
       const reportMap: Record<string, any> = {};
       
@@ -354,13 +390,13 @@ export default function AdminDashboard() {
         
         if (!reportMap[groupKey]) {
           reportMap[groupKey] = {
-            name: log.employeeName || "Unknown",
-            dept: log.department || "N/A",
+            name: log.employeeName || (isAr ? "غير معروف" : "Unknown"),
+            dept: log.department || (isAr ? "غير محدد" : "N/A"),
             date: dateKey,
             checkIn: null,
             checkOut: null,
-            checkInRange: null,
-            checkOutRange: null,
+            checkInLocation: null,
+            checkOutLocation: null,
             _inTime: Infinity,
             _outTime: -Infinity
           };
@@ -369,17 +405,25 @@ export default function AdminDashboard() {
         const timeMs = dateObj.getTime();
         const timeStr = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
         
+        const isInside = isRealGeofenceName(log.geofenceName);
+        const locData = {
+          isInside,
+          label: isInside ? log.geofenceName : `${log.latitude?.toFixed(6) || ''}, ${log.longitude?.toFixed(6) || ''}`,
+          lat: log.latitude,
+          lng: log.longitude
+        };
+
         if (log.status === "In") {
           if (timeMs < reportMap[groupKey]._inTime) {
             reportMap[groupKey]._inTime = timeMs;
             reportMap[groupKey].checkIn = timeStr;
-            reportMap[groupKey].checkInRange = log.geofenceName ? `${log.geofenceName} (${log.latitude ? log.latitude.toFixed(4) : ''}, ${log.longitude ? log.longitude.toFixed(4) : ''})` : "--";
+            reportMap[groupKey].checkInLocation = locData;
           }
         } else if (log.status === "Out") {
           if (timeMs > reportMap[groupKey]._outTime) {
             reportMap[groupKey]._outTime = timeMs;
             reportMap[groupKey].checkOut = timeStr;
-            reportMap[groupKey].checkOutRange = log.geofenceName ? `${log.geofenceName} (${log.latitude ? log.latitude.toFixed(4) : ''}, ${log.longitude ? log.longitude.toFixed(4) : ''})` : "--";
+            reportMap[groupKey].checkOutLocation = locData;
           }
         }
       });
@@ -390,35 +434,80 @@ export default function AdminDashboard() {
           hours = ((item._outTime - item._inTime) / (1000 * 60 * 60)).toFixed(2);
         }
         return {
-          "Staff Name": item.name,
-          "Department": item.dept,
-          "Date": item.date,
-          "Check In": item.checkIn || "--:--",
-          "Check In Range": item.checkInRange || "--",
-          "Check Out": item.checkOut || "--:--",
-          "Check Out Range": item.checkOutRange || "--",
-          "Work Hours": hours
+          name: item.name,
+          dept: item.dept,
+          date: item.date,
+          checkIn: item.checkIn || (isAr ? "غير مسجل" : "--:--"),
+          checkInLocation: item.checkInLocation,
+          checkOut: item.checkOut || (isAr ? "غير مسجل" : "--:--"),
+          checkOutLocation: item.checkOutLocation,
+          workHours: hours
         };
       });
 
       // Create Excel workbook
       const workbook = new ExcelJS.Workbook();
-      const worksheet = workbook.addWorksheet("Attendance Report");
+      const sheetTitle = isAr ? "تقرير الحضور والتحقق الميداني" : "Attendance & Field Verification Report";
+      const worksheet = workbook.addWorksheet(sheetTitle);
 
-      // Add Headers
-      worksheet.columns = [
-        { header: "Staff Name", key: "Staff Name", width: 25 },
-        { header: "Department", key: "Department", width: 20 },
-        { header: "Date", key: "Date", width: 15 },
-        { header: "Check In", key: "Check In", width: 12 },
-        { header: "Check In Range", key: "Check In Range", width: 25 },
-        { header: "Check Out", key: "Check Out", width: 12 },
-        { header: "Check Out Range", key: "Check Out Range", width: 25 },
-        { header: "Work Hours", key: "Work Hours", width: 15 },
+      // Add Headers dynamically based on language
+      const bColumns = isAr ? [
+        { header: "اسم الموظف", key: "staffName", width: 25 },
+        { header: "القسم", key: "department", width: 20 },
+        { header: "التاريخ", key: "date", width: 15 },
+        { header: "وقت الحضور", key: "checkIn", width: 15 },
+        { header: "موقع الحضور", key: "checkInLocation", width: 35 },
+        { header: "وقت الانصراف", key: "checkOut", width: 15 },
+        { header: "موقع الانصراف", key: "checkOutLocation", width: 35 },
+        { header: "ساعات العمل", key: "workHours", width: 15 },
+      ] : [
+        { header: "Staff Name", key: "staffName", width: 25 },
+        { header: "Department", key: "department", width: 20 },
+        { header: "Date", key: "date", width: 15 },
+        { header: "Check In", key: "checkIn", width: 15 },
+        { header: "Check In Location", key: "checkInLocation", width: 35 },
+        { header: "Check Out", key: "checkOut", width: 15 },
+        { header: "Check Out Location", key: "checkOutLocation", width: 35 },
+        { header: "Work Hours", key: "workHours", width: 15 },
       ];
 
-      // Add Data
-      worksheet.addRows(finalData);
+      worksheet.columns = bColumns;
+
+      // Add Rows manually to insert active lat / lng hyperlinks
+      finalData.forEach((item) => {
+        const row = worksheet.addRow({
+          staffName: item.name,
+          department: item.dept,
+          date: item.date,
+          checkIn: item.checkIn,
+          checkInLocation: "", // set below
+          checkOut: item.checkOut,
+          checkOutLocation: "", // set below
+          workHours: item.workHours
+        });
+
+        const handleLocCell = (cell: any, loc: any) => {
+          if (loc) {
+            if (loc.isInside) {
+              cell.value = loc.label;
+            } else if (loc.lat && loc.lng) {
+              cell.value = {
+                text: `${loc.lat.toFixed(6)}, ${loc.lng.toFixed(6)}`,
+                hyperlink: `https://www.google.com/maps?q=${loc.lat},${loc.lng}`,
+                tooltip: isAr ? "انقر لفتح الموقع على خرائط جوجل" : "Click to view on Google Maps"
+              };
+              cell.font = { color: { argb: "0284C7" }, underline: true, bold: true };
+            } else {
+              cell.value = isAr ? "بلا إحداثيات" : "No Coordinates";
+            }
+          } else {
+            cell.value = "--";
+          }
+        };
+
+        handleLocCell(row.getCell("checkInLocation"), item.checkInLocation);
+        handleLocCell(row.getCell("checkOutLocation"), item.checkOutLocation);
+      });
 
       // Make headers bold and styled
       worksheet.getRow(1).font = { bold: true, color: { argb: "FFFFFF" } };
@@ -432,12 +521,21 @@ export default function AdminDashboard() {
       // Apply borders to all current cells
       worksheet.eachRow((row, rowNumber) => {
         row.eachCell((cell) => {
+          // Keep font properties if it's already customized with link/underline color, else set defaults
+          if (!cell.font || !cell.font.underline) {
+            cell.font = {
+              color: { argb: rowNumber === 1 ? "FFFFFF" : "000000" },
+              bold: rowNumber === 1
+            };
+          }
+          
           cell.border = {
             top: { style: "thin" },
             left: { style: "thin" },
             bottom: { style: "thin" },
             right: { style: "thin" }
           };
+          
           if (rowNumber > 1) {
             cell.alignment = { vertical: 'middle', horizontal: 'center' };
             // Zebra striping
@@ -454,12 +552,14 @@ export default function AdminDashboard() {
 
       // Convert to buffer and save
       const buffer = await workbook.xlsx.writeBuffer();
-      const fileName = `Attendance_${filterEmployeeId === 'all' ? 'Company' : 'Staff'}_${filterStartDate}_to_${filterEndDate}.xlsx`;
+      const fileName = isAr
+        ? `تقرير_حضور_${filterEmployeeId === 'all' ? 'الشركة' : 'الموظف'}_من_${filterStartDate}_إلى_${filterEndDate}.xlsx`
+        : `Attendance_${filterEmployeeId === 'all' ? 'Company' : 'Staff'}_${filterStartDate}_to_${filterEndDate}.xlsx`;
       saveAs(new Blob([buffer]), fileName);
       
     } catch (err) {
       console.error("Export failed:", err);
-      alert("Failed to generate professional Excel report.");
+      alert(lang === "ar" ? "فشل تصدير التقرير الاحترافي لرصد الحضور الحركي والميداني." : "Failed to generate professional Excel report.");
     } finally {
       setLoading(false);
     }
@@ -524,10 +624,39 @@ export default function AdminDashboard() {
                   <h3 className="text-2xl font-bold text-on-surface tracking-tight">{t.navEmployees}</h3>
                   <p className="text-sm text-on-surface-variant">{lang === "ar" ? "إدارة وتفويض موظفي الشركة." : "Manage and authorize corporate staff."}</p>
                 </div>
-                <button id="add-employee-btn" onClick={() => { setEditingId(null); setNewEmployee({ username: "", password: "", role: "user", name: "", department: "Operations", avatar: "", assignedGeofenceId: "" }); setShowModal(true); }} className="btn-primary">
-                  <Plus className="w-5 h-5" />
-                  {lang === "ar" ? "إضافة موظف" : "Add Employee"}
-                </button>
+                <div className="flex items-center gap-4">
+                  <div className="flex flex-col items-end text-end">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/80">
+                      {lang === "ar" ? "سعة الموظفين" : "Employee Capacity"}
+                    </span>
+                    <span className="text-xs font-mono font-bold text-on-surface flex items-center gap-1.5 font-sans">
+                      <span className={cn((stats.totalEmployees || employees.length) >= (stats.maxEmployees || 15) ? "text-error" : "text-emerald-400")}>
+                        {stats.totalEmployees || employees.length}
+                      </span>
+                      <span className="text-on-surface-variant/40">/</span>
+                      <span className="opacity-90">{stats.maxEmployees || 15}</span>
+                    </span>
+                  </div>
+
+                  {(stats.totalEmployees || employees.length) >= (stats.maxEmployees || 15) ? (
+                    <button
+                      id="upgrade-capacity-btn"
+                      onClick={() => {
+                        setUpgradeErrorMsg("");
+                        setShowUpgradeModal(true);
+                      }}
+                      className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-black font-extrabold text-xs shadow-lg shadow-amber-500/20 active:scale-95 transition-all duration-200 cursor-pointer"
+                    >
+                      <Crown className="w-4 h-4 text-black animate-bounce" />
+                      {lang === "ar" ? "ترقية الباقة 👑" : "Upgrade Plan 👑"}
+                    </button>
+                  ) : (
+                    <button id="add-employee-btn" onClick={() => { setEditingId(null); setNewEmployee({ username: "", password: "", role: "user", name: "", department: "Operations", avatar: "", assignedGeofenceId: "" }); setShowModal(true); }} className="btn-primary">
+                      <Plus className="w-5 h-5" />
+                      {lang === "ar" ? "إضافة موظف" : "Add Employee"}
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="card overflow-hidden bg-pattern-wavy">
@@ -987,8 +1116,8 @@ export default function AdminDashboard() {
                       {departments.length === 0 ? (
                         <option value="General Admin" className="text-on-surface">General Admin</option>
                       ) : (
-                        departments.map(dept => (
-                          <option key={dept.id} value={dept.name} className="text-on-surface">{dept.name}</option>
+                        departments.map((dept, idx) => (
+                          <option key={`${dept.id || 'dept'}-${idx}`} value={dept.name} className="text-on-surface">{dept.name}</option>
                         ))
                       )}
                     </select>
@@ -1136,14 +1265,14 @@ export default function AdminDashboard() {
                           </p>
                         ) : (
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[160px] overflow-y-auto p-2 bg-[#1A1A1A] border border-outline-variant rounded-2xl">
-                            {geofences.map((gf) => {
+                            {geofences.map((gf, idx) => {
                               const currentSelected = newEmployee.assignedGeofenceId 
                                 ? String(newEmployee.assignedGeofenceId).split(",").map(x => x.trim()).filter(Boolean) 
                                 : [];
                               const isChecked = currentSelected.includes(String(gf.id));
                               return (
                                 <label 
-                                  key={gf.id} 
+                                  key={`${gf.id || 'gf'}-${idx}`} 
                                   className={cn(
                                     "flex items-center gap-3 p-2.5 rounded-xl border transition-all cursor-pointer select-none text-xs font-semibold",
                                     isChecked 
@@ -1231,6 +1360,55 @@ export default function AdminDashboard() {
         log={selectedDoubleLocLog} 
         lang={lang} 
       />
+
+      {/* Dynamic Instant Upgrade Modal */}
+      {showUpgradeModal && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+          <div className="bg-[#1e1e1e] border border-outline-variant rounded-3xl p-6 max-w-sm w-full text-center relative overflow-hidden shadow-2xl">
+            <div className="w-14 h-14 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto mb-4 border border-amber-500/30">
+              <Crown className="w-7 h-7 text-amber-500 animate-pulse" />
+            </div>
+
+            <h3 className="text-lg font-extrabold text-on-surface mb-2">
+              {lang === "ar" ? "ترقية سعة الموظفين 👑" : "Upgrade Employee Capacity 👑"}
+            </h3>
+
+            <p className="text-xs text-on-surface-variant leading-relaxed mb-6">
+              {lang === "ar" 
+                ? "نعتذر، لقد وصلت للحد الأقصى للموظفين في المؤسسة. إذا كنت تريد ترقية باقة اشتراكك وزيادة سعة الموظفين، يرجى التواصل مع الدعم الفني." 
+                : "We apologize, you have reached the maximum employee capacity in the organization. If you would like to upgrade your subscription package and increase capacity, please contact technical support."}
+            </p>
+
+            {upgradeErrorMsg && (
+              <div className="mb-5 p-2.5 rounded-xl bg-error/10 border border-error/20 text-[10px] font-semibold text-error/90">
+                {upgradeErrorMsg}
+              </div>
+            )}
+
+            <div className="flex flex-col gap-2">
+              <a
+                href="https://api.whatsapp.com/send/?phone=218921827916&text&type=phone_number&app_absent=0"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full btn-primary bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 border-none text-black font-extrabold flex items-center justify-center gap-2 h-11 rounded-xl shadow-lg shadow-amber-500/10 active:scale-95 transition-all duration-200 text-xs"
+              >
+                <span>{lang === "ar" ? "الاتصال بالدعم الفني" : "Contact Technical Support"}</span>
+              </a>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowUpgradeModal(false);
+                  setUpgradeErrorMsg("");
+                }}
+                className="w-full py-2.5 rounded-xl hover:bg-neutral-800 text-xs font-bold text-on-surface-variant border border-outline-variant/30 flex items-center justify-center transition-all cursor-pointer"
+              >
+                {lang === "ar" ? "إلغاء الأمر" : "Cancel"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

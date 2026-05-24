@@ -283,12 +283,12 @@ export default function GeofenceSettings() {
                 </div>
 
                 <div className="space-y-2.5 max-h-[350px] overflow-y-auto pr-1">
-                  {geofences.map((gf) => {
+                  {geofences.map((gf, idx) => {
                     const isSelected = selectedId === gf.id;
                     const isTemp = String(gf.id).startsWith("temp_");
                     return (
                       <div
-                        key={gf.id}
+                        key={`${gf.id || 'gf'}-${idx}`}
                         onClick={() => setSelectedId(gf.id)}
                         className={cn(
                           "p-3.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-3 text-left rtl:text-right group relative",
