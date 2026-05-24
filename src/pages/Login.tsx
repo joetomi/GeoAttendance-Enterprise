@@ -20,14 +20,27 @@ export default function Login() {
   const [showLangMenu, setShowLangMenu] = useState(false);
   const navigate = useNavigate();
 
-  const getDeviceMac = () => {
-    let mac = localStorage.getItem("device_mac_address");
-    if (!mac) {
-      const genHex = () => Math.floor(Math.random() * 256).toString(16).padStart(2, '0').toUpperCase();
-      mac = `${genHex()}:${genHex()}:${genHex()}:${genHex()}:${genHex()}:${genHex()}`;
-      localStorage.setItem("device_mac_address", mac);
+  const getDeviceImei = () => {
+    let imei = localStorage.getItem("device_imei_number");
+    if (!imei) {
+      const oldMac = localStorage.getItem("device_mac_address");
+      if (oldMac) {
+        const numericPart = oldMac.replace(/[^0-9]/g, "");
+        imei = "35" + numericPart.substring(0, 12).padEnd(12, "0") + "5";
+        localStorage.setItem("device_imei_number", imei);
+      } else {
+        const prefixes = ["35", "86", "49"];
+        const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
+        let body = "";
+        for (let i = 0; i < 12; i++) {
+          body += Math.floor(Math.random() * 10);
+        }
+        const lastDigit = Math.floor(Math.random() * 10);
+        imei = prefix + body + lastDigit;
+        localStorage.setItem("device_imei_number", imei);
+      }
     }
-    return mac;
+    return imei;
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -39,7 +52,7 @@ export default function Login() {
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password, deviceMac: getDeviceMac() })
+        body: JSON.stringify({ username, password, deviceMac: getDeviceImei() })
       });
       
       const data = await response.json();

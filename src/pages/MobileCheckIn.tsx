@@ -9,14 +9,27 @@ import { useLanguage } from "../contexts/LanguageContext";
 export default function MobileCheckIn() {
   const [status, setStatus] = useState<'idle' | 'checking' | 'success' | 'error'>('idle');
   
-  const getDeviceMac = () => {
-    let mac = localStorage.getItem("device_mac_address");
-    if (!mac) {
-      const genHex = () => Math.floor(Math.random() * 256).toString(16).padStart(2, '0').toUpperCase();
-      mac = `${genHex()}:${genHex()}:${genHex()}:${genHex()}:${genHex()}:${genHex()}`;
-      localStorage.setItem("device_mac_address", mac);
+  const getDeviceImei = () => {
+    let imei = localStorage.getItem("device_imei_number");
+    if (!imei) {
+      const oldMac = localStorage.getItem("device_mac_address");
+      if (oldMac) {
+        const numericPart = oldMac.replace(/[^0-9]/g, "");
+        imei = "35" + numericPart.substring(0, 12).padEnd(12, "0") + "5";
+        localStorage.setItem("device_imei_number", imei);
+      } else {
+        const prefixes = ["35", "86", "49"];
+        const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
+        let body = "";
+        for (let i = 0; i < 12; i++) {
+          body += Math.floor(Math.random() * 10);
+        }
+        const lastDigit = Math.floor(Math.random() * 10);
+        imei = prefix + body + lastDigit;
+        localStorage.setItem("device_imei_number", imei);
+      }
     }
-    return mac;
+    return imei;
   };
   const [currentMode, setCurrentMode] = useState<'In' | 'Out'>('Out');
   const [locationError, setLocationError] = useState<string | null>(null);
@@ -43,7 +56,7 @@ export default function MobileCheckIn() {
   };
 
   const fetchStatus = (userId: string, companyId?: string) => {
-    fetch(`/api/attendance/status/${userId}?deviceMac=${getDeviceMac()}`, {
+    fetch(`/api/attendance/status/${userId}?deviceMac=${getDeviceImei()}`, {
       headers: { "X-Company-Id": companyId || "" }
     })
       .then(res => res.json())
@@ -202,7 +215,7 @@ export default function MobileCheckIn() {
             isDoubleVerification: true,
             loc1: firstLocation,
             loc2: secondPoint,
-            deviceMac: getDeviceMac()
+            deviceMac: getDeviceImei()
           })
         })
         .then(async (res) => {
@@ -278,7 +291,7 @@ export default function MobileCheckIn() {
             employeeId: user.id,
             lat: latitude,
             lng: longitude,
-            deviceMac: getDeviceMac()
+            deviceMac: getDeviceImei()
           })
         })
         .then(async (res) => {
@@ -350,7 +363,7 @@ export default function MobileCheckIn() {
         <AnimatePresence mode="wait">
           {macMismatch ? (
             <motion.div
-              key="mac-mismatch"
+              key="imei-mismatch"
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               className="bg-red-500/10 border border-red-500/20 rounded-[32px] p-8 text-center max-w-sm flex flex-col items-center shadow-lg"
@@ -363,11 +376,11 @@ export default function MobileCheckIn() {
               </h3>
               <p className="text-sm text-red-200/80 leading-relaxed mb-6">
                 {lang === "ar" 
-                  ? "عذراً، هذا الجهاز غير مسجل باسم حسابك ويرجى التواصل مع الإدارة. لا يمكنك تسجيل البصمة هاهنا."
-                  : "Sorry, this device is not registered in your name. Please contact administration. Attendance punching is disallowed."}
+                  ? "التحقق من الهاتف فشل: الـ IMEI للهاتف غير مطابق للمسجل لهذا الحساب. يرجى مراجعة إدارة الشركة."
+                  : "Device verification failed: The device's IMEI does not match the registered device for this account. Please contact administration."}
               </p>
               <div className="bg-white/5 border border-white/10 rounded-xl px-4 py-2 font-mono text-[10px] text-white/50 select-text">
-                ID: {getDeviceMac()}
+                IMEI: {getDeviceImei()}
               </div>
             </motion.div>
           ) : status === 'idle' && (

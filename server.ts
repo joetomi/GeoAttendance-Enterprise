@@ -635,6 +635,25 @@ async function startServer() {
     }
   });
 
+  app.post("/api/employees/:id/reset-mac", async (req, res) => {
+    const db = await getPool();
+    if (!db) {
+      console.log(`Mock reset IMEI identifier for employee: ${req.params.id}`);
+      return res.json({ success: true, message: "Mock IMEI reset successfully" });
+    }
+    
+    try {
+      await db.request()
+        .input("id", sql.NVarChar, req.params.id)
+        .query("UPDATE Employees SET macAddress = NULL WHERE id = @id");
+      
+      res.json({ success: true, message: "تم إعادة تعيين الـ IMEI بنجاح / IMEI reset successfully" });
+    } catch (err: any) {
+      console.error("Failed to reset IMEI number:", err);
+      res.status(500).json({ error: "خطأ في قاعدة البيانات أثناء إعادة تعيين الـ IMEI" });
+    }
+  });
+
   app.get("/api/geofence", async (req, res) => {
     const db = await getPool();
     const companyId = req.headers["x-company-id"] || req.query.companyId || "comp-default";
