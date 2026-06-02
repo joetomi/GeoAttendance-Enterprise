@@ -20,6 +20,7 @@ import { LanguageProvider } from "./contexts/LanguageContext";
 import { useLanguage } from "./contexts/LanguageContext";
 import { NotificationProvider } from "./contexts/NotificationContext";
 import { AuthProvider } from "./contexts/AuthContext";
+import { ThemeProvider } from "./contexts/ThemeContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { cn } from "./lib/utils";
 import { SplashLoader } from "./components/SplashLoader";
@@ -49,17 +50,18 @@ export default function App() {
   const [isLaunching, setIsLaunching] = useState(true);
 
   return (
-    <LanguageProvider>
-      <AnimatePresence mode="wait">
-        {isLaunching && (
-          <SplashLoader onComplete={() => setIsLaunching(false)} />
-        )}
-      </AnimatePresence>
-      <AuthProvider>
-        <NotificationProvider>
-          <BrowserRouter>
-            <IdleTimer />
-            <Routes>
+    <ThemeProvider>
+      <LanguageProvider>
+        <AnimatePresence mode="wait">
+          {isLaunching && (
+            <SplashLoader onComplete={() => setIsLaunching(false)} />
+          )}
+        </AnimatePresence>
+        <AuthProvider>
+          <NotificationProvider>
+            <BrowserRouter>
+              <IdleTimer />
+              <Routes>
             {/* Auth Route */}
             <Route path="/login" element={<Login />} />
             
@@ -125,9 +127,10 @@ export default function App() {
             <Route path="/" element={<Navigate to="/login" replace />} />
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
-        </BrowserRouter>
-        </NotificationProvider>
-      </AuthProvider>
-    </LanguageProvider>
+            </BrowserRouter>
+          </NotificationProvider>
+        </AuthProvider>
+      </LanguageProvider>
+    </ThemeProvider>
   );
 }

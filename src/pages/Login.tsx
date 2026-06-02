@@ -6,6 +6,7 @@ import { cn } from "@/src/lib/utils";
 import { Language, translations } from "../constants/translations";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useAuth } from "../contexts/AuthContext";
+import { ThemeToggleButton } from "../components/ThemeToggleButton";
 
 import { Logo } from "../components/Logo";
 
@@ -71,11 +72,12 @@ export default function Login() {
 
   return (
     <div className="min-h-screen grid lg:grid-cols-2 bg-surface bg-stars" dir={lang === "ar" ? "rtl" : "ltr"}>
-      {/* Language Selector */}
+      {/* Theme and Language selectors */}
       <div className={cn(
-        "absolute top-6 z-50",
+        "absolute top-6 z-50 flex items-center gap-3",
         lang === "ar" ? "left-6" : "right-6"
       )}>
+        <ThemeToggleButton isFloating />
         <div className="relative">
           <button 
             onClick={() => setShowLangMenu(!showLangMenu)}

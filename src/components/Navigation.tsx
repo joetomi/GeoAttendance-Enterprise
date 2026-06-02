@@ -26,6 +26,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { cn } from "../lib/utils";
 import { translations, Language } from "../constants/translations";
 import { Logo } from "./Logo";
+import { ThemeToggleButton } from "./ThemeToggleButton";
 
 interface SidebarProps {
   className?: string;
@@ -451,6 +452,7 @@ export function Header({ title, onMenuClick }: { title: string; onMenuClick?: ()
       </div>
 
       <div className="flex items-center gap-6">
+        <ThemeToggleButton />
         {/* Language Selector */}
         <div className="relative">
           <button 

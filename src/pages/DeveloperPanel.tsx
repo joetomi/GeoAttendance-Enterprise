@@ -16,6 +16,7 @@ import { Employee } from "../types";
 import { cn } from "../lib/utils";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useNavigate } from "react-router-dom";
+import { ThemeToggleButton } from "../components/ThemeToggleButton";
 
 interface Company {
   id: string;
@@ -461,90 +462,92 @@ export default function DeveloperPanel() {
   };
 
   return (
-    <div className="min-h-screen bg-surface bg-stars p-8" dir={lang === "ar" ? "rtl" : "ltr"}>
-      <header className="max-w-5xl mx-auto flex justify-between items-center mb-10">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-primary flex items-center justify-center text-white shadow-lg">
-            <Shield className="w-6 h-6" />
+    <div className="min-h-screen bg-surface bg-stars p-3.5 sm:p-6 md:p-8" dir={lang === "ar" ? "rtl" : "ltr"}>
+      <header className="max-w-5xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 sm:mb-10">
+        <div className="flex items-center gap-3 sm:gap-4 w-full">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-primary flex items-center justify-center text-white shadow-lg shrink-0">
+            <Shield className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
-          <div>
-            <h1 className="text-2xl font-bold text-on-surface">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-lg sm:text-2xl font-black text-on-surface truncate">
               {lang === "ar" ? "بوابة المطور السحابية" : "Developer Cloud Gateway"}
             </h1>
-            <p className="text-sm text-on-surface-variant opacity-60">
-              {lang === "ar" ? "إعداد وإدارة الشركات المتعددة (Multi-tenant Systems) والرؤساء التنفيذيين" : "Provision Multi-tenant Companies & CEOs"}
+            <p className="text-xs sm:text-sm text-on-surface-variant/80 truncate">
+              {lang === "ar" ? "إعداد وإدارة الشركات المتعددة والرؤساء التنفيذيين" : "Provision Multi-tenant Companies & CEOs"}
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+          <ThemeToggleButton className="p-2 sm:p-3 border border-outline-variant rounded-2xl" />
+
           <button
             onClick={() => setLanguage(lang === "ar" ? "en" : "ar")}
-            className="p-3 text-on-surface hover:bg-surface-container-high rounded-2xl transition-all flex items-center gap-2 border border-outline-variant cursor-pointer text-xs font-bold leading-none"
+            className="p-2 sm:p-3 text-on-surface hover:bg-surface-container-high rounded-xl sm:rounded-2xl transition-all flex items-center gap-1.5 border border-outline-variant cursor-pointer text-[11px] sm:text-xs font-bold leading-none"
           >
-            <Globe className="w-4 h-4 text-emerald-500" />
+            <Globe className="w-3.5 h-3.5 text-emerald-500" />
             <span>{lang === "ar" ? "English" : "العربية"}</span>
           </button>
 
           <button 
             onClick={handleLogout}
-            className="p-3 text-red-500 hover:bg-red-500/10 rounded-2xl transition-colors flex items-center gap-2"
+            className="p-2 sm:p-3 text-red-500 hover:bg-red-500/10 rounded-xl sm:rounded-2xl transition-colors flex items-center gap-1.5 cursor-pointer text-[11px] sm:text-xs font-bold leading-none"
           >
-            <LogOut className="w-5 h-5" />
-            <span className="font-bold text-xs uppercase tracking-widest">{lang === "ar" ? "خروج" : "Logout"}</span>
+            <LogOut className="w-4.5 h-4.5" />
+            <span>{lang === "ar" ? "خروج" : "Logout"}</span>
           </button>
         </div>
       </header>
 
       <main className="max-w-5xl mx-auto">
-        {/* Navigation Tabs */}
-        <div className="flex bg-surface-container border border-outline-variant p-1 rounded-2xl mb-8 max-w-xl flex-wrap">
+        {/* Navigation Tabs - Highly Mobile Responsive Grid/Flex layout */}
+        <div className="grid grid-cols-2 md:flex bg-surface-container border border-outline-variant p-1 rounded-2xl mb-6 md:mb-8 max-w-xl gap-1">
           <button
             onClick={() => setActiveTab("dashboard")}
             className={cn(
-              "flex-1 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 cursor-pointer min-w-[100px]",
+              "py-2 px-1.5 sm:py-2.5 sm:px-4 rounded-xl text-[11px] sm:text-xs md:text-sm font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer",
               activeTab === "dashboard" 
                 ? "bg-primary text-white shadow-sm" 
-                : "text-on-surface-variant hover:text-on-surface"
+                : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high"
             )}
           >
-            <Activity className="w-4 h-4" />
-            {lang === "ar" ? "لوحة الإحصائيات" : "Dashboard"}
+            <Activity className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary shrink-0" />
+            <span className="truncate">{lang === "ar" ? "الإحصائيات" : "Stats"}</span>
           </button>
           <button
             onClick={() => setActiveTab("companies")}
             className={cn(
-              "flex-1 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 cursor-pointer min-w-[100px]",
+              "py-2 px-1.5 sm:py-2.5 sm:px-4 rounded-xl text-[11px] sm:text-xs md:text-sm font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer",
               activeTab === "companies" 
                 ? "bg-primary text-white shadow-sm" 
-                : "text-on-surface-variant hover:text-on-surface"
+                : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high"
             )}
           >
-            <Building2 className="w-4 h-4" />
-            {lang === "ar" ? "المنشآت والشركات" : "Companies"}
+            <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-500 shrink-0" />
+            <span className="truncate">{lang === "ar" ? "المنشآت" : "Companies"}</span>
           </button>
           <button
             onClick={() => setActiveTab("ceos")}
             className={cn(
-              "flex-1 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 cursor-pointer min-w-[100px]",
+              "py-2 px-1.5 sm:py-2.5 sm:px-4 rounded-xl text-[11px] sm:text-xs md:text-sm font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer",
               activeTab === "ceos" 
                 ? "bg-primary text-white shadow-sm" 
-                : "text-on-surface-variant hover:text-on-surface"
+                : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high"
             )}
           >
-            <UserCheck className="w-4 h-4" />
-            {lang === "ar" ? "المدراء التنفيذيين" : "CEOs"}
+            <UserCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-500 shrink-0" />
+            <span className="truncate">{lang === "ar" ? "المدراء" : "CEOs"}</span>
           </button>
           <button
             onClick={() => setActiveTab("plans")}
             className={cn(
-              "flex-1 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 cursor-pointer min-w-[100px]",
+              "py-2 px-1.5 sm:py-2.5 sm:px-4 rounded-xl text-[11px] sm:text-xs md:text-sm font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer",
               activeTab === "plans" 
                 ? "bg-primary text-white shadow-sm" 
-                : "text-on-surface-variant hover:text-on-surface"
+                : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high"
             )}
           >
-            <Sparkles className="w-4 h-4 text-emerald-500 animate-pulse" />
-            {lang === "ar" ? "الباقات والاشتراكات" : "Plans & Packages"}
+            <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-violet-500 animate-pulse shrink-0" />
+            <span className="truncate">{lang === "ar" ? "الباقات" : "Plans"}</span>
           </button>
         </div>
 
@@ -552,56 +555,56 @@ export default function DeveloperPanel() {
         {activeTab === "dashboard" && (
           <div className="space-y-8 animate-fade-in mb-8">
             {/* Quick Summary Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              <div className="flex items-center gap-4 p-6 bg-surface-container border border-outline-variant rounded-3xl shadow-sm">
-                <div className="p-3.5 rounded-2xl bg-primary/10 text-primary">
-                  <Building2 className="w-6 h-6" />
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
+              <div className="p-3.5 sm:p-5 bg-surface-container border border-outline-variant rounded-2xl sm:rounded-3xl shadow-sm flex items-center gap-2.5 sm:gap-4">
+                <div className="p-2 sm:p-3 rounded-xl sm:rounded-2xl bg-primary/10 text-primary shrink-0">
+                  <Building2 className="w-4 h-4 sm:w-6 sm:h-6" />
                 </div>
-                <div>
-                  <span className="text-xs text-on-surface-variant opacity-60 font-bold block">
-                    {lang === "ar" ? "عدد المنشآت المستضافة" : "Total Tenanted Companies"}
+                <div className="min-w-0">
+                  <span className="text-[10px] sm:text-xs text-on-surface-variant/80 font-bold block truncate leading-tight">
+                    {lang === "ar" ? "المنشآت المستضافة" : "Tenants Count"}
                   </span>
-                  <span className="text-2xl font-black text-on-surface">{companies.length}</span>
+                  <span className="text-base sm:text-2xl font-black text-on-surface block leading-tight mt-0.5">{companies.length}</span>
                 </div>
               </div>
 
-              <div className="flex items-center gap-4 p-6 bg-surface-container border border-outline-variant rounded-3xl shadow-sm">
-                <div className="p-3.5 rounded-2xl bg-secondary-container/30 text-secondary">
-                  <Users className="w-6 h-6" />
+              <div className="p-3.5 sm:p-5 bg-surface-container border border-outline-variant rounded-2xl sm:rounded-3xl shadow-sm flex items-center gap-2.5 sm:gap-4">
+                <div className="p-2 sm:p-3 rounded-xl sm:rounded-2xl bg-secondary-container/30 text-secondary shrink-0">
+                  <Users className="w-4 h-4 sm:w-6 sm:h-6" />
                 </div>
-                <div>
-                  <span className="text-xs text-on-surface-variant opacity-60 font-bold block">
-                    {lang === "ar" ? "إجمالي الكوادر البشرية" : "Total Registered Staff"}
+                <div className="min-w-0">
+                  <span className="text-[10px] sm:text-xs text-on-surface-variant/80 font-bold block truncate leading-tight">
+                    {lang === "ar" ? "الكوادر البشرية" : "Active Staff"}
                   </span>
-                  <span className="text-2xl font-black text-on-surface">
+                  <span className="text-base sm:text-2xl font-black text-on-surface block leading-tight mt-0.5">
                     {dashboardData ? dashboardData.employeesList.length : ceos.length * 5}
                   </span>
                 </div>
               </div>
 
-              <div className="flex items-center gap-4 p-6 bg-surface-container border border-outline-variant rounded-3xl shadow-sm">
-                <div className="p-3.5 rounded-2xl bg-emerald-500/10 text-emerald-500">
-                  <Clock className="w-6 h-6" />
+              <div className="p-3.5 sm:p-5 bg-surface-container border border-outline-variant rounded-2xl sm:rounded-3xl shadow-sm flex items-center gap-2.5 sm:gap-4">
+                <div className="p-2 sm:p-3 rounded-xl sm:rounded-2xl bg-emerald-500/10 text-emerald-500 shrink-0">
+                  <Clock className="w-4 h-4 sm:w-6 sm:h-6" />
                 </div>
-                <div>
-                  <span className="text-xs text-on-surface-variant opacity-60 font-bold block">
-                    {lang === "ar" ? "مجموع تسجيلات الحضور" : "Total Attendance Logs"}
+                <div className="min-w-0">
+                  <span className="text-[10px] sm:text-xs text-on-surface-variant/80 font-bold block truncate leading-tight">
+                    {lang === "ar" ? "سجل الحضور" : "Attendance Logs"}
                   </span>
-                  <span className="text-2xl font-black text-on-surface">
+                  <span className="text-base sm:text-2xl font-black text-on-surface block leading-tight mt-0.5">
                     {dashboardData ? dashboardData.recentLogs.length : 45}
                   </span>
                 </div>
               </div>
 
-              <div className="flex items-center gap-4 p-6 bg-surface-container border border-outline-variant rounded-3xl shadow-sm">
-                <div className="p-3.5 rounded-2xl bg-amber-500/10 text-amber-500">
-                  <Activity className="w-6 h-6 animate-pulse" />
+              <div className="p-3.5 sm:p-5 bg-surface-container border border-outline-variant rounded-2xl sm:rounded-3xl shadow-sm flex items-center gap-2.5 sm:gap-4">
+                <div className="p-2 sm:p-3 rounded-xl sm:rounded-2xl bg-amber-500/10 text-amber-500 shrink-0">
+                  <Activity className="w-4 h-4 sm:w-6 sm:h-6 animate-pulse" />
                 </div>
-                <div>
-                  <span className="text-xs text-on-surface-variant opacity-60 font-bold block">
-                    {lang === "ar" ? "نشط الآن بالنظام" : "Active Right Now"}
+                <div className="min-w-0">
+                  <span className="text-[10px] sm:text-xs text-on-surface-variant/80 font-bold block truncate leading-tight">
+                    {lang === "ar" ? "نشط حالياً" : "Active Now"}
                   </span>
-                  <span className="text-2xl font-black text-amber-500">
+                  <span className="text-base sm:text-2xl font-black text-amber-500 block leading-tight mt-0.5">
                     {dashboardData ? dashboardData.recentLogs.filter(l => l.status === "In").length : 3}
                   </span>
                 </div>
@@ -609,22 +612,22 @@ export default function DeveloperPanel() {
             </div>
 
             {/* Charts Section */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fade-in">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-8 animate-fade-in">
               {/* Bar Chart - Employees Per Company */}
-              <div className="bg-surface-container border border-outline-variant p-6 rounded-3xl shadow-sm flex flex-col justify-between">
+              <div className="bg-surface-container border border-outline-variant p-4 sm:p-6 rounded-2xl sm:rounded-3xl shadow-sm flex flex-col justify-between">
                 <div>
                   <div className="flex items-center gap-2 mb-1">
                     <BarChart3 className="w-5 h-5 text-primary" />
-                    <h3 className="font-bold text-on-surface text-base">
+                    <h3 className="font-bold text-on-surface text-sm sm:text-base">
                       {lang === "ar" ? "قوة الكوادر لكل شركة" : "Staff Distribution per Corporate Space"}
                     </h3>
                   </div>
-                  <p className="text-xs text-on-surface-variant opacity-60 mb-6">
+                  <p className="text-[11px] sm:text-xs text-on-surface-variant/85 mb-3 sm:mb-6">
                     {lang === "ar" ? "مقارنة حية لعدد الموظفين المسجلين في كل نطاق شركة" : "Simultaneous count of active staff registered under each corporation space"}
                   </p>
                 </div>
                 
-                <div className="h-64 w-full">
+                <div className="h-48 sm:h-64 w-full">
                   {dashboardData && dashboardData.employeeCounts.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={dashboardData.employeeCounts} margin={{ top: 10, right: 10, left: -20, bottom: 5 }}>
@@ -665,20 +668,20 @@ export default function DeveloperPanel() {
               </div>
 
               {/* Area Chart - Logins Timeline */}
-              <div className="bg-surface-container border border-outline-variant p-6 rounded-3xl shadow-sm flex flex-col justify-between">
+              <div className="bg-surface-container border border-outline-variant p-4 sm:p-6 rounded-2xl sm:rounded-3xl shadow-sm flex flex-col justify-between">
                 <div>
                   <div className="flex items-center gap-2 mb-1">
                     <TrendingUp className="w-5 h-5 text-emerald-500" />
-                    <h3 className="font-bold text-on-surface text-base">
+                    <h3 className="font-bold text-on-surface text-sm sm:text-base">
                       {lang === "ar" ? "تاريخ تسجيلات الدخول والنشاط" : "Tenancy Daily Sign-Ins Activity timeline"}
                     </h3>
                   </div>
-                  <p className="text-xs text-on-surface-variant opacity-60 mb-6">
+                  <p className="text-[11px] sm:text-xs text-on-surface-variant/85 mb-3 sm:mb-6">
                     {lang === "ar" ? "معدل الحضور اليومي لكافة الشركات ومطابقة تسجيل الدخول" : "Growth indicators representing employee sign-ins mapped across day logs"}
                   </p>
                 </div>
 
-                <div className="h-64 w-full">
+                <div className="h-48 sm:h-64 w-full">
                   {dashboardData && dashboardData.attendanceHistory.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <AreaChart data={dashboardData.attendanceHistory} margin={{ top: 10, right: 10, left: -20, bottom: 5 }}>
@@ -733,22 +736,22 @@ export default function DeveloperPanel() {
               </div>
             </div>
 
-            {/* List of Latest Sign-Ins & Quick Actions */}
-            <div className="bg-surface-container border border-outline-variant p-6 rounded-3xl shadow-sm">
-              <h3 className="font-bold text-on-surface mb-6 flex items-center gap-2">
-                <Clock className="w-5 h-5 text-primary" />
+            {/* List of Latest Sign-Ins & Quick Actions - Responsive padding & full-bleed styling on mobile */}
+            <div className="bg-surface-container border border-outline-variant p-4 sm:p-6 rounded-2xl sm:rounded-3xl shadow-sm">
+              <h3 className="font-bold text-on-surface mb-4 sm:mb-6 flex items-center gap-2 text-sm sm:text-base">
+                <Clock className="w-4.5 h-4.5 sm:w-5 sm:h-5 text-primary" />
                 {lang === "ar" ? "أحدث حركات الحضور في جميع النطاقات" : "Consolidated Latest Sign-In Protocols"}
               </h3>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+              <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+                <table className="w-full text-xs min-w-[700px]">
                   <thead>
-                    <tr className="border-b border-outline-variant text-[10px] uppercase font-bold text-on-surface-variant opacity-60 tracking-wider">
-                      <th className="py-3 text-start">{lang === "ar" ? "الموظف" : "Employee"}</th>
-                      <th className="py-3 text-start">{lang === "ar" ? "المؤسسة المنتمي إليها" : "Assigned Corporation"}</th>
-                      <th className="py-3 text-start">{lang === "ar" ? "القسم" : "Department"}</th>
-                      <th className="py-3 text-start">{lang === "ar" ? "الوقت والتاريخ" : "Timestamp"}</th>
-                      <th className="py-3 text-center">{lang === "ar" ? "الحالة" : "Action"}</th>
+                    <tr className="border-b border-outline-variant text-[9px] sm:text-[10px] uppercase font-bold text-on-surface-variant opacity-60 tracking-wider">
+                      <th className="py-2.5 sm:py-3 text-start">{lang === "ar" ? "الموظف" : "Employee"}</th>
+                      <th className="py-2.5 sm:py-3 text-start">{lang === "ar" ? "المؤسسة المنتمي إليها" : "Assigned Corporation"}</th>
+                      <th className="py-2.5 sm:py-3 text-start">{lang === "ar" ? "القسم" : "Department"}</th>
+                      <th className="py-2.5 sm:py-3 text-start">{lang === "ar" ? "الوقت والتاريخ" : "Timestamp"}</th>
+                      <th className="py-2.5 sm:py-3 text-center">{lang === "ar" ? "الحالة" : "Action"}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-outline-variant/30">
@@ -816,17 +819,17 @@ export default function DeveloperPanel() {
 
         {/* --- Tab Content: Companies --- */}
         {activeTab === "companies" && (
-          <div className="card p-8 bg-surface-container border border-outline-variant rounded-3xl">
-            <div className="flex justify-between items-center mb-8">
+          <div className="card p-4 sm:p-6 md:p-8 bg-surface-container border border-outline-variant rounded-2xl md:rounded-3xl">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 md:mb-8">
               <div className="flex items-center gap-2">
-                <Building2 className="w-6 h-6 text-primary" />
-                <h2 className="text-xl font-bold text-on-surface">
+                <Building2 className="w-5 h-5 sm:w-6 sm:h-6 text-primary shrink-0" />
+                <h2 className="text-base sm:text-xl font-bold text-on-surface">
                   {lang === "ar" ? "الشركات والمؤسسات المستضافة" : "Provisioned Corporations"}
                 </h2>
               </div>
               <button
                 onClick={handleAddCompanyClick}
-                className="btn bg-primary text-white hover:bg-primary-hover shadow-lg shadow-primary/20 flex items-center gap-2 font-bold text-sm"
+                className="btn w-full sm:w-auto bg-primary text-white hover:bg-primary-hover shadow-lg shadow-primary/20 flex items-center justify-center gap-2 font-bold text-xs sm:text-sm py-2 px-4 rounded-xl"
               >
                 <Plus className="w-5 h-5" />
                 {lang === "ar" ? "إضافة شركة جديدة" : "Create Company"}
@@ -946,27 +949,27 @@ export default function DeveloperPanel() {
                         </div>
                       </div>
 
-                       <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-outline-variant flex-wrap">
+                        <div className="grid grid-cols-1 sm:flex sm:items-center sm:justify-end gap-2 pt-4 border-t border-outline-variant w-full">
                         <button
                           onClick={() => handleViewCompanyDetails(comp)}
-                          className="px-3.5 py-2 text-xs text-primary bg-primary/10 hover:bg-primary hover:text-white transition-all rounded-xl font-bold flex items-center gap-1.5 cursor-pointer"
+                          className="w-full sm:w-auto justify-center px-3 py-2 text-[11px] sm:text-xs text-primary bg-primary/10 hover:bg-primary hover:text-white transition-all rounded-xl font-bold flex items-center gap-1.5 cursor-pointer"
                         >
                           <Building2 className="w-3.5 h-3.5" />
-                          <span>{lang === "ar" ? "تفاصيل الشركة" : "Details"}</span>
+                          <span>{lang === "ar" ? "التفاصيل" : "Details"}</span>
                         </button>
                         <button
                           onClick={() => handleEditCompanyClick(comp)}
-                          className="px-3.5 py-2 text-xs text-secondary bg-secondary-container/20 hover:bg-secondary-container transition-all rounded-xl font-bold flex items-center gap-1.5 cursor-pointer"
+                          className="w-full sm:w-auto justify-center px-3 py-2 text-[11px] sm:text-xs text-secondary bg-secondary-container/20 hover:bg-secondary-container transition-all rounded-xl font-bold flex items-center gap-1.5 cursor-pointer"
                         >
                           <Edit3 className="w-3.5 h-3.5" />
                           <span>{lang === "ar" ? "تعديل" : "Edit"}</span>
                         </button>
                         <button
                           onClick={() => triggerDelete("company", comp)}
-                          className="px-3.5 py-2 text-xs text-red-500 bg-red-500/15 hover:bg-red-500 hover:text-white transition-all rounded-xl font-bold flex items-center gap-1.5 cursor-pointer"
+                          className="w-full sm:w-auto justify-center px-3 py-2 text-[11px] sm:text-xs text-red-500 bg-red-500/15 hover:bg-red-500 hover:text-white transition-all rounded-xl font-bold flex items-center gap-1.5 cursor-pointer"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
-                          <span>{lang === "ar" ? "حذف والبيانات كاملاً" : "Purge data"}</span>
+                          <span>{lang === "ar" ? "حذف بالكامل" : "Purge data"}</span>
                         </button>
                       </div>
                     </div>
@@ -979,18 +982,18 @@ export default function DeveloperPanel() {
 
         {/* --- Tab Content: CEOs --- */}
         {activeTab === "ceos" && (
-          <div className="card p-8 bg-surface-container border border-outline-variant rounded-3xl">
-            <div className="flex justify-between items-center mb-8">
+          <div className="card p-4 sm:p-6 md:p-8 bg-surface-container border border-outline-variant rounded-2xl md:rounded-3xl">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 md:mb-8">
               <div className="flex items-center gap-2">
-                <UserCheck className="w-6 h-6 text-primary" />
-                <h2 className="text-xl font-bold text-on-surface">
+                <UserCheck className="w-5 h-5 sm:w-6 sm:h-6 text-primary shrink-0" />
+                <h2 className="text-base sm:text-xl font-bold text-on-surface">
                   {lang === "ar" ? "مدراء الفروع والمؤسسات" : "Authorized Tenant Presidents"}
                 </h2>
               </div>
               <button
                 onClick={handleAddCeoClick}
                 disabled={companies.length === 0}
-                className="btn bg-primary text-white hover:bg-primary-hover shadow-lg shadow-primary/20 flex items-center gap-2 font-bold text-sm disabled:opacity-40"
+                className="btn w-full sm:w-auto bg-primary text-white hover:bg-primary-hover shadow-lg shadow-primary/20 flex items-center justify-center gap-2 font-bold text-xs sm:text-sm py-2 px-4 rounded-xl disabled:opacity-40"
               >
                 <Plus className="w-5 h-5" />
                 {lang === "ar" ? "تعيين CEO جديد" : "Appoint CEO"}
@@ -1020,36 +1023,36 @@ export default function DeveloperPanel() {
                 ceos.map(ceo => {
                   const belongComp = companies.find(c => c.id === ceo.companyId);
                   return (
-                    <div key={ceo.id} className="flex items-center justify-between p-4 bg-surface rounded-2xl border border-outline-variant hover:border-primary/30 transition-all shadow-sm">
-                      <div className="flex items-center gap-4">
+                    <div key={ceo.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 sm:p-4 bg-surface rounded-2xl border border-outline-variant hover:border-primary/30 transition-all gap-4 shadow-sm">
+                      <div className="flex items-center gap-3 sm:gap-4 w-full sm:w-auto">
                         <img 
                           src={ceo.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(ceo.name)}&background=10B981&color=fff`} 
                           alt={ceo.name} 
-                          className="w-11 h-11 rounded-xl object-cover border border-outline-variant bg-slate-100"
+                          className="w-10 h-10 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl object-cover border border-outline-variant bg-slate-100 shrink-0"
                           referrerPolicy="no-referrer"
                         />
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <h3 className="font-bold text-on-surface text-sm">{ceo.name}</h3>
-                            <span className="px-2 py-0.5 rounded bg-primary/10 text-primary text-[10px] font-black uppercase">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                            <h3 className="font-bold text-on-surface text-xs sm:text-sm truncate max-w-[150px] sm:max-w-none">{ceo.name}</h3>
+                            <span className="px-1.5 py-0.5 rounded bg-primary/10 text-primary text-[9px] sm:text-[10px] font-black uppercase truncate leading-none">
                               {belongComp ? belongComp.name : "Unassigned Company"}
                             </span>
                           </div>
-                          <p className="text-xs text-on-surface-variant opacity-60">@{ceo.username}</p>
+                          <p className="text-[10px] sm:text-xs text-on-surface-variant/70 mt-0.5" dir="ltr">@{ceo.username}</p>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 w-full sm:w-auto justify-end border-t border-outline-variant/30 pt-3 sm:pt-0 sm:border-none">
                         <button 
                           onClick={() => handleEditCeoClick(ceo)}
-                          className="px-3.5 py-2 text-xs text-secondary bg-secondary-container/20 hover:bg-secondary-container transition-all rounded-xl font-bold flex items-center gap-1.5 cursor-pointer"
+                          className="flex-1 sm:flex-initial px-3 sm:py-2 text-[11px] sm:text-xs text-secondary bg-secondary-container/20 hover:bg-secondary-container transition-all rounded-xl font-bold flex items-center justify-center gap-1.5 cursor-pointer"
                         >
                           <Edit3 className="w-3.5 h-3.5" />
                           <span>{lang === "ar" ? "تعديل" : "Edit"}</span>
                         </button>
                         <button 
                           onClick={() => triggerDelete("ceo", ceo)}
-                          className="px-3.5 py-2 text-xs text-red-500 bg-red-500/10 hover:bg-red-500 hover:text-white transition-all rounded-xl font-bold flex items-center gap-1.5 cursor-pointer"
+                          className="flex-1 sm:flex-initial px-3 sm:py-2 text-[11px] sm:text-xs text-red-500 bg-red-500/10 hover:bg-red-500 hover:text-white transition-all rounded-xl font-bold flex items-center justify-center gap-1.5 cursor-pointer"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                           <span>{lang === "ar" ? "حذف" : "Remove"}</span>
@@ -1065,22 +1068,22 @@ export default function DeveloperPanel() {
 
         {/* --- Tab Content: Subscription Plans --- */}
         {activeTab === "plans" && (
-          <div className="card p-8 bg-surface-container border border-outline-variant rounded-3xl animate-fade-in text-on-surface">
-            <div className="flex justify-between items-center mb-8 flex-wrap gap-4">
+          <div className="card p-4 sm:p-6 md:p-8 bg-surface-container border border-outline-variant rounded-2xl md:rounded-3xl animate-fade-in text-on-surface">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 md:mb-8 gap-4">
               <div className="flex items-center gap-2">
-                <Sparkles className="w-6 h-6 text-emerald-500 animate-pulse" />
+                <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-500 animate-pulse shrink-0" />
                 <div>
-                  <h2 className="text-xl font-bold text-on-surface">
-                    {lang === "ar" ? "إدارة باقات الخدمة والاشتراكات" : "System Subscription Packages"}
+                  <h2 className="text-base sm:text-xl font-bold text-on-surface">
+                    {lang === "ar" ? "باقات الخدمة والاشتراكات" : "System Subscription Packages"}
                   </h2>
-                  <p className="text-xs text-on-surface-variant opacity-65 mt-0.5">
-                    {lang === "ar" ? "تحديد الباقات الافتراضية، حدود الموظفين، والميزات النشطة لكل باقة" : "Define default packages, employee sizes, and allowed features for subscriptions"}
+                  <p className="text-[11px] sm:text-xs text-on-surface-variant/80 mt-0.5">
+                    {lang === "ar" ? "باقات الخدمة وحدود الموظفين والميزات والموديولات لكل باقة" : "Define default packages, employee sizes, and allowed features for subscriptions"}
                   </p>
                 </div>
               </div>
               <button
                 onClick={handleAddPlanClick}
-                className="btn bg-primary text-white hover:bg-primary-hover shadow-lg shadow-primary/20 flex items-center gap-2 font-bold text-sm cursor-pointer"
+                className="btn w-full sm:w-auto bg-primary text-white hover:bg-primary-hover shadow-lg shadow-primary/20 flex items-center justify-center gap-2 font-bold text-xs sm:text-sm py-2 px-4 rounded-xl cursor-pointer"
               >
                 <Plus className="w-5 h-5" />
                 {lang === "ar" ? "إضافة باقة جديدة" : "Create Package"}
@@ -1138,19 +1141,19 @@ export default function DeveloperPanel() {
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-outline-variant/30 mt-4">
+                      <div className="flex items-center gap-2 pt-4 border-t border-outline-variant/30 mt-4">
                         <button
                           onClick={() => handleEditPlanClick(plan)}
-                          className="px-3 py-1.5 text-xs text-secondary bg-secondary-container/20 hover:bg-secondary-container transition-all rounded-xl font-bold flex items-center gap-1.5 cursor-pointer"
+                          className="flex-1 sm:flex-initial justify-center px-3 py-2 text-[11px] sm:text-xs text-secondary bg-secondary-container/20 hover:bg-secondary-container transition-all rounded-xl font-bold flex items-center gap-1.5 cursor-pointer"
                         >
-                          <Edit3 className="w-3 h-3" />
+                          <Edit3 className="w-3.5 h-3.5" />
                           <span>{lang === "ar" ? "تعديل" : "Edit"}</span>
                         </button>
                         <button
                           onClick={() => handleDeletePlan(plan.id)}
-                          className="px-3 py-1.5 text-xs text-red-500 bg-red-500/10 hover:bg-red-500 hover:text-white transition-all rounded-xl font-bold flex items-center gap-1.5 cursor-pointer"
+                          className="flex-1 sm:flex-initial justify-center px-3 py-2 text-[11px] sm:text-xs text-red-500 bg-red-500/10 hover:bg-red-500 hover:text-white transition-all rounded-xl font-bold flex items-center gap-1.5 cursor-pointer"
                         >
-                          <Trash2 className="w-3 h-3" />
+                          <Trash2 className="w-3.5 h-3.5" />
                           <span>{lang === "ar" ? "حذف" : "Remove"}</span>
                         </button>
                       </div>
@@ -1165,8 +1168,8 @@ export default function DeveloperPanel() {
 
       {/* --- MODAL 1: Company Creation / Edit --- */}
       {showCompanyModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto">
-          <div className="card w-full max-w-md p-8 bg-surface-container shadow-2xl relative border border-primary/30 max-h-[90vh] overflow-y-auto text-on-surface">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md overflow-y-auto">
+          <div className="card w-full max-w-md p-4 sm:p-6 md:p-8 bg-surface-container shadow-2xl relative border border-primary/30 max-h-[95vh] sm:max-h-[90vh] overflow-y-auto text-on-surface">
             <button 
               onClick={() => setShowCompanyModal(false)}
               className="absolute top-6 right-6 text-on-surface-variant hover:text-on-surface"
@@ -1344,8 +1347,8 @@ export default function DeveloperPanel() {
 
       {/* --- MODAL 2: CEO Appointment --- */}
       {showCeoModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-          <div className="card w-full max-w-md p-8 bg-surface-container shadow-2xl relative border border-primary/30">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md overflow-y-auto">
+          <div className="card w-full max-w-md p-4 sm:p-6 md:p-8 bg-surface-container shadow-2xl relative border border-primary/30 max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
             <button 
               onClick={() => setShowCeoModal(false)}
               className="absolute top-6 right-6 text-on-surface-variant hover:text-on-surface"
@@ -1493,8 +1496,8 @@ export default function DeveloperPanel() {
 
       {/* --- Delete Confirmation Modal --- */}
       {showConfirmModal && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-          <div className="card w-full max-w-md p-8 bg-surface-container shadow-2xl relative border border-red-500/30">
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md overflow-y-auto">
+          <div className="card w-full max-w-md p-4 sm:p-6 md:p-8 bg-surface-container shadow-2xl relative border border-red-500/30 max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
             <button 
               onClick={() => { setShowConfirmModal(false); setItemToDelete(null); }}
               className="absolute top-6 right-6 text-on-surface-variant hover:text-on-surface"
@@ -1557,8 +1560,8 @@ export default function DeveloperPanel() {
 
       {/* --- MODAL 4: Company Details & Logs/Charts Panel --- */}
       {showDetailsModal && selectedCompanyDetails && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto">
-          <div className="bg-surface-container border border-outline-variant w-full max-w-5xl rounded-3xl p-6 sm:p-8 shadow-2xl relative my-8 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md overflow-y-auto">
+          <div className="bg-surface-container border border-outline-variant w-full max-w-5xl rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 shadow-2xl relative my-4 sm:my-8 max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
             <button 
               onClick={() => setShowDetailsModal(false)}
               className="absolute top-6 right-6 p-2 text-on-surface hover:bg-white/10 rounded-full transition-all cursor-pointer"
@@ -1829,8 +1832,8 @@ export default function DeveloperPanel() {
 
       {/* --- MODAL 5: Subscription Plan Creation / Edit --- */}
       {showPlanModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto">
-          <div className="card w-full max-w-md p-8 bg-surface-container shadow-2xl relative border border-emerald-500/30 text-on-surface max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md overflow-y-auto">
+          <div className="card w-full max-w-md p-4 sm:p-6 md:p-8 bg-surface-container shadow-2xl relative border border-emerald-500/30 text-on-surface max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
             <button 
               onClick={() => setShowPlanModal(false)}
               className="absolute top-6 right-6 text-on-surface-variant hover:text-on-surface"
